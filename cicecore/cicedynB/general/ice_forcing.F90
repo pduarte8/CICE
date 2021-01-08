@@ -48,7 +48,6 @@
                 read_clim_data, read_clim_data_nc, &
                 interpolate_data, interp_coeff_monthly, &
                 read_data_nc_point, interp_coeff, &
-                read_data_nc_point, interp_coeff, & !Pedro stuff begins
                 init_forcing_bry, get_forcing_bry !Pedro stuff ends    
 
       integer (kind=int_kind), public :: &
@@ -86,7 +85,7 @@
 
       integer (kind=int_kind) :: &
            oldrecnum = 0  , & ! old record number (save between steps)
-           oldrecnum4X = 0    !
+           oldrecnum4X = 0, &    !
       !METNO START       
            oldrecnum6 = 0, &
            oldrecnum12 = 0
@@ -129,7 +128,7 @@
          ocn_data_type, & ! 'default', 'clim', 'ncar', 'oned',
                           ! 'hadgem_sst' or 'hadgem_sst_uvocn'
          ice_data_type, & ! 'default', 'box2001', 'boxslotcyl'
-         precip_units     ! 'mm_per_month', 'mm_per_sec', 'mks','m_per_sec'
+         precip_units,  & ! 'mm_per_month', 'mm_per_sec', 'mks','m_per_sec'
          !Pedro changes begin
          sea_ice_bry      ! 'default', 'daily'
          !Pedro changes end
@@ -138,7 +137,7 @@
          ocn_data_dir , & ! top directory for ocean data
          wave_spec_dir, & ! dir name for wave spectrum
          wave_spec_file,& ! file name for wave spectrum
-         oceanmixed_file  ! file name for ocean forcing data
+         oceanmixed_file,&! file name for ocean forcing data
          !Pedro changes begin
          sea_ice_bry_dir
          !Pedro changes end 
@@ -159,7 +158,7 @@
        !*****************************************************************************
       !Pedro changes
       real (kind=dbl_kind), &
-       dimension (nx_block,ny_block,max_blocks,nfld,365) :: & 
+       dimension (:,:,:,:,:), allocatable :: &
          ocn_frc_d   ! ocn data for 365 days
       !*****************************************************************************
       logical (kind=log_kind), public :: &
@@ -185,7 +184,7 @@
       !Boundary arrays 
       
       real (kind=dbl_kind), &
-         dimension(nx_block,ny_block,ncat,max_blocks),public :: &
+         dimension(:,:,:,:), allocatable,public :: &
          aicen_bry, &     ! concentration of ice  
          vicen_bry, &     ! volume per unit area of ice          (m) 
          vsnon_bry, &     ! volume per unit area of snow         (m)
@@ -203,7 +202,7 @@
       !   Tsfc_bry         ! ice/snow surface temperature         (oC)
 
       real (kind=dbl_kind), &
-         dimension(nx_block,ny_block,nilyr,ncat,max_blocks),public :: &
+         dimension(:,:,:,:,:), allocatable,public :: &
          Tinz_bry, &     ! sea-ice innner temperature  (CICE grid layers) 
          Sinz_bry        ! sea-ice inner bulk salinity (CICE grid layers)       
         
@@ -247,8 +246,21 @@
         topmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
         botmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
            ocn_frc_m(nx_block,ny_block,  max_blocks,nfld,12), & ! ocn data for 12 months
+           ocn_frc_d(nx_block,ny_block,  max_blocks,nfld,365), & ! ocn data for 365 days
         topmelt_file(ncat), &
         botmelt_file(ncat), &
+         aicen_bry(nx_block,ny_block,ncat,max_blocks), &     ! concentration of ice  
+         vicen_bry(nx_block,ny_block,ncat,max_blocks), &     ! volume per unit area of ice          (m) 
+         vsnon_bry(nx_block,ny_block,ncat,max_blocks), &     ! volume per unit area of snow         (m)
+         Tsfc_bry(nx_block,ny_block,ncat,max_blocks),  &     ! ice/snow surface temperature         (oC)
+         alvln_bry(nx_block,ny_block,ncat,max_blocks), &     ! concentration of level ice
+         vlvln_bry(nx_block,ny_block,ncat,max_blocks), &     ! volume per unit of area of level ice (m)
+         apondn_bry(nx_block,ny_block,ncat,max_blocks),&     ! melt pond fraction category 
+         hpondn_bry(nx_block,ny_block,ncat,max_blocks),&     ! melt pond depth category (m) 
+         ipondn_bry(nx_block,ny_block,ncat,max_blocks),&     ! mean pond ice thickness over sea ice (m)
+         iage_bry(nx_block,ny_block,ncat,max_blocks),  &     ! ice age
+         Tinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks), &     ! sea-ice innner temperature  (CICE grid layers) 
+         Sinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks), &     ! sea-ice salinity
          stat=ierr)
       if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory')
 
@@ -529,11 +541,11 @@
          call ocn_data_hycom_init
       endif
       
-      if (trim(ocn_data_type) == 'ISPOL' then
+      if (trim(ocn_data_type) == 'ISPOL') then
          call ocn_data_ispol_init
       endif
       
-      if (trim(ocn_data_type) == 'NICE' then
+      if (trim(ocn_data_type) == 'NICE') then
          call ocn_data_NICE_init
       endif
 
@@ -3251,7 +3263,7 @@
          this_block           ! block information for current block
 
       real (kind=dbl_kind) :: &
-            Lsub, secday, Tffresh
+            Lsub, secday, Tffresh, puny
 
       call icepack_query_parameters(Lsub_out=Lsub)
       call icepack_query_parameters(secday_out=secday)
@@ -5218,9 +5230,6 @@
 !=======================================================================
       subroutine NICE_atm_files
 
-      integer (kind=int_kind), intent(in) :: &
-           yr                   ! current forcing year
-
       fsw_file = &
            trim(atm_data_dir)//'fsw_sfc.nc' 
 
@@ -5274,12 +5283,15 @@
 #ifdef ncdf
       use netcdf
 #endif
+      use ice_domain, only: nblocks, blocks_ice
+      use ice_blocks, only: block, get_block
+      use ice_grid, only: hm, tlon, tlat, tmask, umask
 
 !local parameters
 
 #ifdef ncdf
       character (char_len_long) :: & 
-         met_file,   &    ! netcdf filename
+         met_file,   &    ! netcdf filenam
          fieldname        ! field name in netcdf file
 
       real (kind=dbl_kind), dimension(2), save :: &
@@ -5307,7 +5319,8 @@
          recslot     , &  ! spline slot for current record
          dataloc     , &  ! = 1 for data located in middle of time interval
                           ! = 2 for date located at end of time interval
-         ilo, ihi, jlo, jhi
+         ilo, ihi, jlo, jhi, &
+         iblk
  
       real (kind=dbl_kind) :: &
          secday    , &
@@ -5324,7 +5337,8 @@
           recnum4X        ! record number
 
       character(len=*), parameter :: subname = '(ISPOL_data)'
-
+      type (block) :: &
+         this_block           ! block information for current block
 #ifdef ncdf 
       call icepack_query_parameters(secday_out=secday)
       call icepack_warnings_flush(nu_diag)
@@ -5850,7 +5864,7 @@
 
       if (my_task == master_task) then
 
-         if (restore_sst) write (nu_diag,*)  &
+         if (restore_ocn) write (nu_diag,*)  &
              'SST restoring timescale = ',trestore,' days' 
 
          sst_file = trim(ocn_data_dir)//oceanmixed_file ! not just sst
@@ -5934,8 +5948,8 @@
       use ice_diagnostics, only: latpnt, lonpnt
 
       real (kind=dbl_kind), intent(in) :: &
-         dt, &      ! time step 
-         secday            
+         dt      ! time step 
+                     
       integer (kind=int_kind) :: &
           i, j, n, iblk, &
           ixm,ixx      , & ! record numbers for neighboring months
@@ -5948,7 +5962,8 @@
           sec_day        !  fix time to noon
 
       real (kind=dbl_kind) :: &
-          sec1hr              ! number of seconds in 1 hour
+          sec1hr, &             ! number of seconds in 1 hour
+          secday
       real (kind=dbl_kind) :: &
           vmin, vmax
       logical (kind=log_kind) :: diag
@@ -6039,7 +6054,7 @@
       enddo 
       call ocn_freezing_temperature
       !write(*,*) 'unrestored after ft=',sst(4,4,:)
-      if (restore_sst) then
+      if (restore_ocn) then
         do j = 1, ny_block 
          do i = 1, nx_block         
            sst(i,j,:) = sst(i,j,:) + (work1(i,j,:)-sst(i,j,:))*dt/trest 
@@ -6280,6 +6295,9 @@ subroutine boundary_files(yr)
             Tinz_work_bry, & ! field values at 2 temporal data points
             Sinz_work_bry
       !write (nu_diag,*) 'boundary_data'
+      real (kind=dbl_kind) :: secday
+
+      call icepack_query_parameters(secday_out=secday)
 
       dbug=.false.
       if (istep1 > check_step) dbug = .true.  !! debugging
