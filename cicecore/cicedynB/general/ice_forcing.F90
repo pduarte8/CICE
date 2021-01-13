@@ -160,6 +160,9 @@
       real (kind=dbl_kind), &
        dimension (:,:,:,:,:), allocatable :: &
          ocn_frc_d   ! ocn data for 365 days
+      !real (kind=dbl_kind), &
+      ! dimension (nx_block,ny_block,max_blocks,nfld,365) :: & 
+      !   ocn_frc_d   ! ocn data for 365 days
       !*****************************************************************************
       logical (kind=log_kind), public :: &
          restore_ocn                 ! restore sst if true
@@ -222,7 +225,6 @@
 !
       subroutine alloc_forcing
       integer (int_kind) :: ierr
-
       allocate ( &
                  cldf(nx_block,ny_block, max_blocks), & ! cloud fraction
             fsw_data(nx_block,ny_block,2,max_blocks), & ! field values at 2 temporal data points
@@ -282,7 +284,7 @@
       character(len=*), parameter :: subname = '(init_forcing_atmo)'
 
       ! Allocate forcing arrays 
-      call alloc_forcing()
+      !call alloc_forcing()
 
       fyear       = fyear_init + mod(nyr-1,ycycle) ! current year
       fyear_final = fyear_init + ycycle - 1 ! last year in forcing cycle
@@ -390,7 +392,7 @@
          work1
 
       character(len=*), parameter :: subname = '(init_forcing_ocn)'
-
+      !call alloc_forcing()
       call icepack_query_parameters(secday_out=secday)
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
@@ -5079,7 +5081,7 @@
 
       call ice_timer_start(timer_readwrite)  ! reading/writing
 
-      field_data = c0 ! to satisfy intent(out) attribute
+      !field_data = c0 ! to satisfy intent(out) attribute
 
       if (istep1 > check_step) dbug = .true.  !! debugging
 
@@ -5386,7 +5388,8 @@
                                                 
         met_file = tair_file 
         fieldname='Tair' 
-
+        !write(*,*) 'Tair',fyear,ixm,ixx,ixp,maxrec,met_file,fieldname,field_loc_center,field_type_scalar
+   
         call read_data_nc_point(read1, 0, fyear, ixm, ixx, ixp, &
                     maxrec, met_file, fieldname, Tair_data_p, &
                     field_loc_center, field_type_scalar)
@@ -5394,7 +5397,10 @@
         Tair(:,:,:) =  c1intp * Tair_data_p(1) &
                        + c2intp * Tair_data_p(2) &
                      - lapse_rate*8.0_dbl_kind
-
+        !write(*,*) 'read1=',read1,' c1intp=',c1intp,' c2intp=',c2intp,' lapse_rate=',lapse_rate
+        !write(*,*) 'Tair_data_p(1)=',Tair_data_p(1)
+        !write(*,*) 'Tair_data_p(2)=',Tair_data_p(2) 
+        !write(*,*) 'Tair=',Tair 
         met_file = humid_file 
         fieldname='Qa'
 
@@ -5842,7 +5848,10 @@
         n   , & ! field index
         m   , & ! month index
         nrec, & ! record number for direct access
-        nbits
+        nbits, &
+        i, & ! nx_block index
+        j, & ! ny_block index 
+        k    ! max_blocks index   
 
       character(char_len) :: &
         vname(nfld) ! variable names to search for in file
@@ -5896,9 +5905,19 @@
                !write(*,*) 'vname(n)=',vname(n),'work=',work          
             endif
             ocn_frc_d(:,:,:,n,m) = work
+            !write(*,*) 'nx_block=',nx_block,' ny_block=',ny_block,' max_blocks=',max_blocks
+            !do i=1,nx_block
+               !write(*,*) 'i=',i
+               !do j=1,ny_block
+                  !do k=1,max_blocks
+                     !ocn_frc_d(i,j,k,n,m) = work
+                  !enddo
+               !enddo
+            !enddo   
+            !write(*,*) 'ocn_frc_d(:,:,:,n,m)=',ocn_frc_d(:,:,:,n,m)
           enddo               ! daily loop
         enddo               ! field loop
-
+        !write(*,*) 'ocn_frc_d(:,:,:,n,m)=',ocn_frc_d(:,:,:,1,:) 
         if (my_task == master_task) status = nf90_close(fid)
 #endif
 
@@ -6008,8 +6027,10 @@
           sst_data(:,:,1,iblk) = ocn_frc_d(:,:,iblk,n,ixm)
           sst_data(:,:,2,iblk) = ocn_frc_d(:,:,iblk,n,ixx)
           !if (n == 1) then
-          !    write(*,*) 'First =', sst_data(4,4,1,iblk)
-          !    write(*,*) 'Second =',sst_data(4,4,2,iblk)
+          !    write(*,*) 'ocean_frc_d1=',ocn_frc_d(:,:,iblk,n,ixm)
+          !    write(*,*) 'ocean_frc_d2=',ocn_frc_d(:,:,iblk,n,ixx) 
+          !    write(*,*) 'First =', sst_data(:,:,1,iblk)
+          !    write(*,*) 'Second =',sst_data(:,:,2,iblk)
           !endif  
         enddo
         !$OMP END PARALLEL DO
@@ -6019,6 +6040,7 @@
         !   write(*,*) 'Interpolated=',work1(:,:,:)
         !endif
         ! masking by hm is necessary due to NaNs in the data file
+        !write(*,*) 'nx_block=',nx_block,' ny_block=',ny_block,' max_blocks=',max_blocks,' nfld=',nfld
         do j = 1, ny_block 
           do i = 1, nx_block 
             if (n == 2) sss    (i,j,:) = c0

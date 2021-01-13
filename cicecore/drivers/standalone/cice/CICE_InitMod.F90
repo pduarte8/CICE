@@ -74,7 +74,7 @@
       use ice_dyn_shared, only: kdyn, init_evp, alloc_dyn_shared
       use ice_flux, only: init_coupler_flux, init_history_therm, &
           init_history_dyn, init_flux_atm, init_flux_ocn, alloc_flux
-      use ice_forcing, only: init_forcing_ocn, init_forcing_atmo, &
+      use ice_forcing, only: alloc_forcing, init_forcing_ocn, init_forcing_atmo, &
           get_forcing_atmo, get_forcing_ocn, get_wave_spec
       use ice_forcing_bgc, only: get_forcing_bgc, get_atm_bgc, &
           faero_default, faero_optics, alloc_forcing_bgc
@@ -160,7 +160,7 @@
          file=__FILE__, line=__LINE__)
 
 !     call calendar(time)       ! determine the initial date
-
+      call alloc_forcing
       call init_forcing_ocn(dt) ! initialize sss and sst from data
       call init_state           ! initialize the ice state
       call init_transport       ! initialize horizontal transport
