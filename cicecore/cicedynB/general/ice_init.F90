@@ -936,7 +936,7 @@
       !-----------------------------------------------------------------
 
       if (my_task == master_task) then
-
+         !open(98, file = 'Lim_factors.dat', status = 'new') 
          write(nu_diag,*) ' Document ice_in namelist parameters:'
          write(nu_diag,*) ' ==================================== '
          write(nu_diag,*) ' '

@@ -1282,18 +1282,20 @@
                            first_ice, fswpenln, bphi, bTiz, ice_bio_net,  &
                            snow_bio_net, fswthrun, Rayleigh_criteria, &
                            ocean_bio_all, sice_rho, fzsal, fzsal_g, &
-                           bgrid, igrid, icgrid, cgrid
+                           bgrid, igrid, icgrid, cgrid, Cdn_ocn
       use ice_blocks, only: block, get_block
       use ice_domain, only: blocks_ice
       use ice_domain_size, only: nblyr, nilyr, nslyr, n_algae, n_zaero, ncat, &
                                  n_doc, n_dic,  n_don, n_fed, n_fep
       use ice_flux, only: meltbn, melttn, congeln, snoicen, &
                           sst, sss, fsnow, meltsn
+      use ice_flux, only: uocn, vocn, strocnxT, strocnyT
       use ice_flux_bgc, only: hin_old, flux_bio, flux_bio_atm, faero_atm, & 
           nit, amm, sil, dmsp, dms, algalN, doc, don, dic, fed, fep, zaeros, hum
       use ice_state, only: aicen_init, vicen_init, aicen, vicen, vsnon, &
           trcrn, vsnon_init, aice0                    
       use ice_timers, only: timer_bgc, ice_timer_start, ice_timer_stop
+      
 
       real (kind=dbl_kind), intent(in) :: &
          dt      ! time step
@@ -1321,12 +1323,13 @@
          bio_index_o
 
       logical (kind=log_kind) :: &
-         skl_bgc, tr_brine, tr_zaero
+         skl_bgc, tr_brine, tr_zaero, Bottom_turb_mix
 
       character(len=*), parameter :: subname='(biogeochemistry)'
 
       call icepack_query_tracer_flags(tr_brine_out=tr_brine)
       call icepack_query_parameters(skl_bgc_out=skl_bgc)
+      call icepack_query_parameters(Bottom_turb_mix_out=Bottom_turb_mix)
       call icepack_query_tracer_sizes(ntrcr_out=ntrcr, nbtrcr_out=nbtrcr)
       call icepack_query_tracer_flags(tr_zaero_out=tr_zaero)
       call icepack_query_tracer_indices(nlt_zaero_out=nlt_zaero)
@@ -1421,7 +1424,12 @@
                               trcrn        = trcrn       (i,j,:,:,      iblk), &
                               vsnon_init   = vsnon_init  (i,j,:,        iblk), &
                               Rayleigh_criteria = Rayleigh_criteria(i,j,iblk), &
-                              skl_bgc      = skl_bgc)
+                              skl_bgc      = skl_bgc,                          &
+                              uocn = uocn(i,j,iblk), vocn = vocn(i,j,iblk),    & 
+                              strocnxT = strocnxT(i,j,iblk),                   &
+                              strocnyT = strocnyT(i,j,iblk),                   &
+                              Bottom_turb_mix = Bottom_turb_mix,               &
+                              Cdn_ocn = Cdn_ocn(i,j,iblk) )
 
       enddo               ! i
       enddo               ! j

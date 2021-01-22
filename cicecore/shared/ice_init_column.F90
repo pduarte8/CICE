@@ -14,7 +14,7 @@
       use ice_domain_size, only: n_aero, n_zaero, n_algae
       use ice_domain_size, only: n_doc, n_dic, n_don
       use ice_domain_size, only: n_fed, n_fep
-      use ice_fileunits, only: nu_diag
+      use ice_fileunits, only: nu_diag, nu_Limiting_factors_out
       use ice_fileunits, only: nu_nml, nml_filename, get_fileunit, &
                                release_fileunit, flush_fileunit
       use ice_exit, only: abort_ice
@@ -45,7 +45,7 @@
                 init_age, init_FY, init_lvl, init_fsd, &
                 init_meltponds_cesm, init_meltponds_lvl, init_meltponds_topo, &
                 init_aerosol, init_bgc, init_hbrine, init_zbgc, input_zbgc, &
-                count_tracers
+                count_tracers 
 
       ! namelist parameters needed locally
 
@@ -74,6 +74,9 @@
 
       real (kind=dbl_kind), dimension(icepack_max_aero) :: &
          zaerotype
+
+      logical (kind=log_kind) :: &
+         Bottom_turb_mix 
 
       real (kind=dbl_kind) :: &
           grid_o, l_sk, grid_o_t, initbio_frac, &
@@ -999,9 +1002,14 @@
       integer (kind=int_kind) :: &
          nml_error, & ! namelist i/o error flag
          abort_flag
+      
+      logical (kind=log_kind) :: &
+         Limiting_factors_file, file_exists
+         
+   
 
       character(len=*), parameter :: subname='(input_zbgc)'
-
+      
       !-----------------------------------------------------------------
       ! namelist variables
       !-----------------------------------------------------------------
@@ -1051,7 +1059,8 @@
         zaerotype_dust3    , zaerotype_dust4    , ratio_C2N_diatoms  ,  &
         ratio_C2N_sp       , ratio_C2N_phaeo    , ratio_chl2N_diatoms,  & 
         ratio_chl2N_sp     , ratio_chl2N_phaeo  , F_abs_chl_diatoms  ,  &
-        F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins 
+        F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins ,  &
+        Limiting_factors_file, Bottom_turb_mix ! Added by Pedro
 
       !-----------------------------------------------------------------
 
@@ -1220,7 +1229,8 @@
       F_abs_chl_sp       = 4.0_dbl_kind
       F_abs_chl_phaeo    = 5.0
       ratio_C2N_proteins = 7.0_dbl_kind  ! ratio of C to N in proteins (mol/mol)       
-
+      Limiting_factors_file = .false.
+      Bottom_turb_mix = .false.
       ! z salinity  parameters
       grid_oS         = c5            ! for bottom flux         
       l_skS           = 7.0_dbl_kind  ! characteristic diffusive scale (m)  
@@ -1244,6 +1254,18 @@
             read(nu_nml, nml=zbgc_nml,iostat=nml_error)
          end do
          if (nml_error == 0) close(nu_nml)
+              
+         if (Limiting_factors_file) then
+         inquire(file="Lim_factors.dat", exist=file_exists)
+         if (file_exists) then
+            open(nu_Limiting_factors_out, file = 'Lim_factors.dat', status = 'replace')
+         else
+            open(nu_Limiting_factors_out, file = 'Lim_factors.dat', status = 'new')
+         endif
+         write(nu_Limiting_factors_out,*) 'Light ','Temperature ','Nitrogen ','Si lim '
+
+      endif 
+
       endif
       call broadcast_scalar(nml_error, master_task)
       if (nml_error /= 0) then
@@ -1405,7 +1427,8 @@
       call broadcast_scalar(F_abs_chl_sp       ,  master_task)
       call broadcast_scalar(F_abs_chl_phaeo    ,  master_task)
       call broadcast_scalar(ratio_C2N_proteins ,  master_task) 
-
+      call broadcast_scalar(nu_Limiting_factors_out,master_task)
+      call broadcast_scalar(Bottom_turb_mix    ,  master_task)
       !-----------------------------------------------------------------
       ! zsalinity and brine
       !-----------------------------------------------------------------
@@ -2580,7 +2603,9 @@
          fr_resp_s_in=fr_resp_s, y_sk_DMS_in=y_sk_DMS, t_sk_conv_in=t_sk_conv, t_sk_ox_in=t_sk_ox, &
          mu_max_in=mu_max, R_Si2N_in=R_Si2N, R_C2N_DON_in=R_C2N_DON, chlabs_in=chlabs, &
          alpha2max_low_in=alpha2max_low, beta2max_in=beta2max, grow_Tdep_in=grow_Tdep, &
-         fr_graze_in=fr_graze, mort_pre_in=mort_pre, f_doc_in=f_doc,fsal_in=fsal)
+         fr_graze_in=fr_graze, mort_pre_in=mort_pre, f_doc_in=f_doc,fsal_in=fsal, &
+         nu_Limiting_factors_out_in=nu_Limiting_factors_out, Bottom_turb_mix_in = Bottom_turb_mix)
+
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
           file=__FILE__, line=__LINE__)

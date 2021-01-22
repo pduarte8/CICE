@@ -64,7 +64,9 @@
          nu_restart_eap, &  ! restart input file for eap dynamics
          nu_rst_pointer, &  ! pointer to latest restart file
          nu_history    , &  ! binary history output file
-         nu_hdr             ! header file for binary history output
+         nu_hdr        , &  ! header file for binary history output
+         nu_Limiting_factors_out ! added by Pedro for limiting factor file (only columnar applications)
+         
 
       character (32), public :: &
          nml_filename = 'ice_in' ! namelist input file name
@@ -141,6 +143,7 @@
          call get_fileunit(nu_rst_pointer)
          call get_fileunit(nu_history)
          call get_fileunit(nu_hdr)
+         call get_fileunit(nu_Limiting_factors_out)
 
       end subroutine init_fileunits
 
@@ -201,7 +204,7 @@
       subroutine release_all_fileunits
 
          character(len=*),parameter :: subname='(release_all_fileunits)'
-
+         logical itsopen 
          call release_fileunit(nu_grid)
          call release_fileunit(nu_kmt)
          call release_fileunit(nu_forcing)
@@ -228,7 +231,14 @@
          call release_fileunit(nu_rst_pointer)
          call release_fileunit(nu_history)
          call release_fileunit(nu_hdr)
+         call release_fileunit(nu_Limiting_factors_out)
+
          if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
+
+         inquire(unit=98, opened=itsopen) 
+         if ( itsopen ) then          
+             close(98)
+         endif
 
       end subroutine release_all_fileunits
 
