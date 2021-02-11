@@ -48,7 +48,7 @@
                 read_clim_data, read_clim_data_nc, &
                 interpolate_data, interp_coeff_monthly, &
                 read_data_nc_point, interp_coeff, &
-                init_forcing_bry, get_forcing_bry !Pedro stuff ends    
+                init_forcing_bry, get_forcing_bry !Pedro Duarte (NPI) stuff ends    
 
       integer (kind=int_kind), public :: &
          ycycle          , & ! number of years in forcing cycle
@@ -72,7 +72,7 @@
             sss_file, &
          sublim_file, &
            snow_file, &
-           bry_file , & !Pedro changes
+           bry_file , & !Pedro Duarte (NPI) changes
            cloud_file
 
       character (char_len_long), dimension(:), allocatable :: &  ! input data file names
@@ -129,18 +129,18 @@
                           ! 'hadgem_sst' or 'hadgem_sst_uvocn'
          ice_data_type, & ! 'default', 'box2001', 'boxslotcyl'
          precip_units,  & ! 'mm_per_month', 'mm_per_sec', 'mks','m_per_sec'
-         !Pedro changes begin
+         !Pedro Duarte (NPI) changes begin
          sea_ice_bry      ! 'default', 'daily'
-         !Pedro changes end
+         !Pedro Duarte (NPI) changes end
       character(char_len_long), public :: & 
          atm_data_dir , & ! top directory for atmospheric data
          ocn_data_dir , & ! top directory for ocean data
          wave_spec_dir, & ! dir name for wave spectrum
          wave_spec_file,& ! file name for wave spectrum
          oceanmixed_file,&! file name for ocean forcing data
-         !Pedro changes begin
+         !Pedro Duarte (NPI) changes begin
          sea_ice_bry_dir
-         !Pedro changes end 
+         !Pedro Duarte (NPI) changes end 
 
       integer (kind=int_kind), parameter :: & 
          nfld = 8   ! number of fields to search for in forcing file
@@ -156,7 +156,7 @@
        dimension (:,:,:,:,:), allocatable :: &
          ocn_frc_m   ! ocn data for 12 months
        !*****************************************************************************
-      !Pedro changes
+      !Pedro Duarte (NPI) changes
       real (kind=dbl_kind), &
        dimension (:,:,:,:,:), allocatable :: &
          ocn_frc_d   ! ocn data for 365 days
@@ -743,7 +743,7 @@
       elseif (trim(ocn_data_type) == 'oned') then
          call ocn_data_oned
 !************************************************************************
-!   Added by Pedro to deal with daily ocean for cing data             
+!   Added by Pedro Duarte (NPI) to deal with daily ocean for cing data             
       elseif (trim(ocn_data_type) == 'NICE') then
          call ocn_data_NICE(dt)  
 !************************************************************************
@@ -1663,11 +1663,11 @@
 !                                          hm(i,j),   flw(i,j))
          enddo
          enddo
-      !Pedro changes start
+      !Pedro Duarte (NPI) changes start
       elseif ((trim(atm_data_type) == 'ISPOL').OR.&
              (trim(atm_data_type) == 'Resolute')) then  ! rectangular grid 
          zlvl0 = c10
-      !Pedro changes end
+      !Pedro Duarte (NPI) changes end
       endif                     ! atm_data_type
 
       !-----------------------------------------------------------------
@@ -5818,7 +5818,7 @@
 
       end subroutine get_wave_spec
 !=======================================================================
-!Pedro changes
+!Pedro Duarte (NPI) changes
       subroutine ocn_data_NICE_init  
 
 ! Reads NICE forcing data 
@@ -5834,7 +5834,7 @@
 ! 7  dhdy-----surface tilt y direction--------------(m/m) 
 ! 8  qdp------ocean sub-mixed layer heat flux-------(W/m2)
 !
-! authors: Adapted from ocn_data_ispol_init by Pedro Duarte, NPI
+! authors: Adapted from ocn_data_ispol_init by Pedro Duarte (NPI) Duarte, NPI
 !
       use ice_domain, only: nblocks, distrb_info
       use ice_gather_scatter
@@ -5931,7 +5931,7 @@
 !echmod
       end subroutine ocn_data_NICE_init
 !=======================================================================
-!Pedro changes
+!Pedro Duarte (NPI) changes
       subroutine ocn_data_NICE(dt)  
 
 ! Uses NICE daily ocean forcing data read from netcdf files
@@ -5953,7 +5953,7 @@
 ! Fields 4, 5, 6, 7 are on the U-grid; 1, 2, 3, and 8 are
 ! on the T-grid.
 !
-! authors: Adapted from ISPOL_data by Pedro Duarte, NPI
+! authors: Adapted from ISPOL_data by Pedro Duarte (NPI) Duarte, NPI
 
 
       ! for interpolation of hourly data  
@@ -6147,7 +6147,7 @@
       
       end subroutine ocn_data_NICE
 !=======================================================================
-!Pedro stuff begins
+!Pedro Duarte (NPI) stuff begins
 
       subroutine init_forcing_bry
        
@@ -6212,7 +6212,7 @@ subroutine boundary_files(yr)
       ! Edit for other directory structures or filenames.
       ! Note: The year number in these filenames does not matter, because
       !       subroutine file_year_bry will insert the correct year.
-      ! authors: Pedro Duarte, NPI
+      ! authors: Pedro Duarte (NPI) Duarte, NPI
 
       integer (kind=int_kind), intent(in) :: &
            yr                   ! current forcing year
@@ -6266,7 +6266,7 @@ subroutine boundary_files(yr)
 ! This sub-routine is used to read daily time-varying sea-ice boundary data
 ! It is assumed that data is at zero hours of each day
 ! Therefore, noly on data slot is considered. 
-! authors: Pedro Duarte, Norwegian Polar Institute
+! authors: Pedro Duarte (NPI) Duarte, Norwegian Polar Institute
 ! Modified:Nov 2017 
 
       use ice_diagnostics, only: check_step    
@@ -6599,7 +6599,7 @@ subroutine boundary_files(yr)
 ! let the ixp value equal the last value of the year.
 
 !
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
 ! Modified:Nov 2017 
 
       
@@ -6758,7 +6758,7 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 ! If no later data exists (end of fyear_final), then
 ! let the ixp value equal the last value of the year.
 !
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
 ! Modified:Nov 2017 
 
       
@@ -6917,7 +6917,7 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 ! let the ixp value equal the last value of the year.
 
 !
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
 ! Modified:Nov 2017 
 
       
@@ -7068,7 +7068,7 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 
 ! Linear interpolation for variables belonging to various ice types
 
-! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
+! author: ! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
 ! Modified:Nov 2017 
 
       use ice_domain, only: nblocks
@@ -7106,7 +7106,7 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 
 ! Linear interpolation for variables belonging to various ice types and layers
 
-! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
+! author: ! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
 ! Modified:Nov 2017 
 
       use ice_domain, only: nblocks
@@ -7140,7 +7140,7 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 
       end subroutine interpolate_data_n_layer
 
-!Pedro stuff ends  
+!Pedro Duarte (NPI) stuff ends  
 !=======================================================================
 
       end module ice_forcing

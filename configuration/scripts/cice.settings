@@ -1,7 +1,7 @@
 #! /bin/csh -f
 
-setenv ICE_CASENAME   undefined
-setenv ICE_SANDBOX    undefined
+setenv ICE_CASENAME   undefined  
+setenv ICE_SANDBOX    undefined 
 setenv ICE_MACHINE    undefined
 setenv ICE_COMPILER   undefined
 setenv ICE_MACHCOMP   undefined

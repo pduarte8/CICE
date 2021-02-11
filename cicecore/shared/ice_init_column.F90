@@ -1060,7 +1060,7 @@
         ratio_C2N_sp       , ratio_C2N_phaeo    , ratio_chl2N_diatoms,  & 
         ratio_chl2N_sp     , ratio_chl2N_phaeo  , F_abs_chl_diatoms  ,  &
         F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins ,  &
-        Limiting_factors_file, Bottom_turb_mix ! Added by Pedro
+        Limiting_factors_file, Bottom_turb_mix ! Added by Pedro Duarte (NPI)
 
       !-----------------------------------------------------------------
 

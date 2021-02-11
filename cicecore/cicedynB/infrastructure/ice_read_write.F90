@@ -2437,7 +2437,7 @@
 ! This prevents them from being filled with zeroes in land cells
 ! (subroutine ice_HaloUpdate need not be called).
 !
-! Adapted by Pedro Duarte, NPI from ice_read_nc_xyz
+! Adapted by Pedro Duarte (NPI) Duarte, NPI from ice_read_nc_xyz
 
       subroutine ice_read_nc_bry_2D(fid,  nrec,  varname1, varname2, &
                                  varname3, varname4, work,  diag, &
@@ -2624,7 +2624,7 @@
 ! This prevents them from being filled with zeroes in land cells
 ! (subroutine ice_HaloUpdate need not be called).
 !
-! Adapted by Pedro Duarte, NPI from ice_read_nc_xyz
+! Adapted by Pedro Duarte (NPI) Duarte, NPI from ice_read_nc_xyz
 
       subroutine ice_read_nc_bry_3D(fid,  nrec,  varname1, varname2, &
                                  varname3, varname4, work,  diag, &
@@ -2824,7 +2824,7 @@
 ! This prevents them from being filled with zeroes in land cells
 ! (subroutine ice_HaloUpdate need not be called).
 !
-! Adapted by Pedro Duarte, NPI from ice_read_nc_xyz
+! Adapted by Pedro Duarte (NPI) Duarte, NPI from ice_read_nc_xyz
 
       subroutine ice_read_nc_bry_4D(fid,  nrec,  varname1, varname2, &
                                  varname3, varname4, work,  diag, &

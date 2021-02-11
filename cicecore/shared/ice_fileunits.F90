@@ -65,7 +65,7 @@
          nu_rst_pointer, &  ! pointer to latest restart file
          nu_history    , &  ! binary history output file
          nu_hdr        , &  ! header file for binary history output
-         nu_Limiting_factors_out ! added by Pedro for limiting factor file (only columnar applications)
+         nu_Limiting_factors_out ! added by Pedro Duarte (NPI) for limiting factor file (only columnar applications)
          
 
       character (32), public :: &
