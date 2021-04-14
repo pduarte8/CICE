@@ -17,7 +17,8 @@
 
       use ice_kinds_mod
       use ice_blocks, only: nx_block, ny_block
-      use ice_domain_size, only: ncat, max_blocks, nx_global, ny_global, nilyr
+      use ice_domain_size, only: ncat, max_blocks, nx_global, ny_global, &
+                                 nilyr, nslyr
       use ice_communicate, only: my_task, master_task
       use ice_calendar, only: istep, istep1, time, time_forc, &
                               sec, mday, month, nyr, yday, daycal, dayyr, &
@@ -26,7 +27,8 @@
       use ice_exit, only: abort_ice
       use ice_read_write, only: ice_open, ice_read, &
                                 ice_get_ncvarsize, ice_read_vec_nc, &
-                                ice_open_nc, ice_read_nc, ice_close_nc
+                                ice_open_nc, ice_read_nc, ice_close_nc, &
+                                snow_read_nc_bry_4d
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite, &
                             timer_bound
       use ice_arrays_column, only: oceanmixed_ice, restore_bgc
@@ -208,7 +210,13 @@
          dimension(:,:,:,:,:), allocatable,public :: &
          Tinz_bry, &     ! sea-ice innner temperature  (CICE grid layers) 
          Sinz_bry        ! sea-ice inner bulk salinity (CICE grid layers)       
-        
+      real (kind=dbl_kind), &
+         dimension(:,:,:,:,:), allocatable,public :: &
+         Tsnz_bry        ! snow innner temperature  (CICE grid layers)   
+      real (kind=dbl_kind), &
+         dimension(:,:,:), allocatable,public :: &
+          uvel_bry, &      ! x-component of ice velocity (m/s) pedrocice
+          vvel_bry         ! y-component of ice velocity (m/s) pedrocice
       interface read_bry_ice_data_nc
         module procedure read_bry_ice_data_nc_2D, &
                          read_bry_ice_data_nc_3D, &
@@ -263,6 +271,9 @@
          iage_bry(nx_block,ny_block,ncat,max_blocks),  &     ! ice age
          Tinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks), &     ! sea-ice innner temperature  (CICE grid layers) 
          Sinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks), &     ! sea-ice salinity
+         Tsnz_bry(nx_block,ny_block,nslyr,ncat,max_blocks), &
+         uvel_bry(nx_block,ny_block,max_blocks), &
+         vvel_bry(nx_block,ny_block,max_blocks), &
          stat=ierr)
       if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory')
 
@@ -6266,22 +6277,28 @@ subroutine boundary_files(yr)
 ! This sub-routine is used to read daily time-varying sea-ice boundary data
 ! It is assumed that data is at zero hours of each day
 ! Therefore, noly on data slot is considered. 
-! authors: Pedro Duarte (NPI) Duarte, Norwegian Polar Institute
+! authors: Pedro Duarte, Norwegian Polar Institute
 ! Modified:Nov 2017 
 
       use ice_diagnostics, only: check_step    
-      
+      use ice_constants, only: field_loc_center, field_type_scalar
+      use ice_blocks, only: block, get_block  !Added by mitya  
+      use ice_domain,      only : nblocks, blocks_ice   
+      logical ::debug
+
+      type(block) :: this_block
       integer (kind=int_kind) :: &
-         ! i,j         , & ! horizontal indices
+           ilo,jlo,jhi,ihi, & ! horizontal indices
+           ini,inj,inig,injg,&
          ! n           , & ! thickness category index
          ! k           , & ! layer index
-          ixm,ixx,ixp , & ! record numbers for neighboring days
-          recnum      , & ! record number
-          dataloc     , & ! = 1 for data located in middle of time interval
+           ixm,ixx,ixp , & ! record numbers for neighboring days
+           recnum      , & ! record number
+           dataloc     , & ! = 1 for data located in middle of time interval
                           ! = 2 for date located at end of time interval
-         ! iblk        , & ! block index
-          maxrec      , & ! maximum record number
-          recslot         ! spline slot for current record
+           iblk        , & ! block index
+           maxrec      , & ! maximum record number
+           recslot         ! spline slot for current record
           
 
       logical (kind=log_kind) :: read1, dbug
@@ -6309,18 +6326,23 @@ subroutine boundary_files(yr)
             !hbrine_work_bry,&     
             !fbrine_work_bry,&    
             iage_work_bry
-      !real (kind=dbl_kind), dimension(nx_block,ny_block,2,max_blocks) :: &
+      real (kind=dbl_kind), dimension(nx_block,ny_block,2,max_blocks) :: & !pedrocice
       !      Tsfc_work_bry
+            uvel_work_bry,& !pedrocice
+            vvel_work_bry   !pedrocice
       
       real (kind=dbl_kind), &
       dimension(nx_block,ny_block,nilyr,ncat,2,max_blocks) :: &
             Tinz_work_bry, & ! field values at 2 temporal data points
             Sinz_work_bry
+      
+      real (kind=dbl_kind), &
+      dimension(nx_block,ny_block,nslyr,ncat,2,max_blocks) :: &
+            Tsnz_work_bry    ! field values at 2 temporal data points   
       !write (nu_diag,*) 'boundary_data'
-      real (kind=dbl_kind) :: secday
-
-      call icepack_query_parameters(secday_out=secday)
-
+      real (dbl_kind) :: &
+           secday
+      call icepack_query_parameters(secday_out=secday) 
       dbug=.false.
       if (istep1 > check_step) dbug = .true.  !! debugging
 
@@ -6372,27 +6394,34 @@ subroutine boundary_files(yr)
       !     write (nu_diag,*) 'data_file =',data_file
       !     write (nu_diag,*) 'fyear =', fyear 
       !end if   
-      ! Ice concentration boundaries
+      ! Ice concentration boundaries  
       fieldname1='aicen_N_bry'
       fieldname2='aicen_S_bry'
       fieldname3='aicen_W_bry'
       fieldname4='aicen_E_bry'
-      
+      iblk=1
+      this_block = get_block(blocks_ice(iblk),iblk)                                                                                                                                                        
+      ilo = this_block%ilo
+      ihi = this_block%ihi
+      jlo = this_block%jlo
+      jhi = this_block%jhi
+
+
       call read_bry_ice_data_nc (read1, 0, fyear, ixm, ixx, ixp, &
                 maxrec, data_file,fieldname1,fieldname2, &
                 fieldname3,fieldname4,aicen_work_bry, &
                 field_loc_center, field_type_scalar)
-      
+
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (aicen_work_bry, aicen_bry)
-
-      !if (my_task == master_task ) then
-      !write (nu_diag,*) 'nx_block= ',nx_block
-      !write (nu_diag,*) 'ny_block= ',ny_block
-      !write (nu_diag,*) 'aicen_N_bry =',aicen_work_bry(nx_block,ny_block,2,1,1:max_blocks)
-      !write (nu_diag,*) 'aicen_E_bry =',aicen_work_bry(200,ny_block,2,1,1:max_blocks)
-      !write (nu_diag,*) 'aicen_N =',aicen_bry(nx_block,ny_block,2,12)
-      !endif
+      debug = .false.
+      if (debug) then
+         ini = 1802
+         inj = 1352
+         inig = this_block%i_glob(ihi)
+         injg = this_block%j_glob(jhi)
+      endif
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       
       fieldname1='vicen_N_bry'
       fieldname2='vicen_S_bry'
@@ -6410,8 +6439,8 @@ subroutine boundary_files(yr)
       !if (my_task == master_task ) then
       !write (nu_diag,*) 'vicen_N_bry =',vicen_work_bry(nx_block,ny_block,2,1,1:max_blocks)
       !write (nu_diag,*) 'vicen_N =',vicen_bry(nx_block,ny_block,2,12)
-      !endif
-
+      !endif      call file_year_bry (data_file, fyear) ! Ensure correct year-file
+ 
       fieldname1='vsnon_N_bry'
       fieldname2='vsnon_S_bry'
       fieldname3='vsnon_W_bry'
@@ -6424,7 +6453,9 @@ subroutine boundary_files(yr)
        
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (vsnon_work_bry, vsnon_bry)
-  
+      
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
+ 
       fieldname1='Tsfc_N_bry'
       fieldname2='Tsfc_S_bry'
       fieldname3='Tsfc_W_bry'
@@ -6438,6 +6469,7 @@ subroutine boundary_files(yr)
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (Tsfc_work_bry, Tsfc_bry)
 
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='alvln_N_bry'
       fieldname2='alvln_S_bry'
       fieldname3='alvln_W_bry'
@@ -6451,6 +6483,7 @@ subroutine boundary_files(yr)
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (alvln_work_bry, alvln_bry)
 
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='vlvln_N_bry'
       fieldname2='vlvln_S_bry'
       fieldname3='vlvln_W_bry'
@@ -6464,6 +6497,7 @@ subroutine boundary_files(yr)
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (vlvln_work_bry, vlvln_bry)
 
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='apondn_N_bry'
       fieldname2='apondn_S_bry'
       fieldname3='apondn_W_bry'
@@ -6477,6 +6511,7 @@ subroutine boundary_files(yr)
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (apondn_work_bry, apondn_bry)
 
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='hpondn_N_bry'
       fieldname2='hpondn_S_bry'
       fieldname3='hpondn_W_bry'
@@ -6488,8 +6523,9 @@ subroutine boundary_files(yr)
                 field_loc_center, field_type_scalar)
        
       call interp_coeff (recnum, recslot, secday, dataloc)
-      call interpolate_data_n (hpondn_work_bry, hpondn_bry)      
-
+      call interpolate_data_n (hpondn_work_bry, hpondn_bry)  
+    
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file 
       fieldname1='ipondn_N_bry'
       fieldname2='ipondn_S_bry'
       fieldname3='ipondn_W_bry'
@@ -6502,7 +6538,22 @@ subroutine boundary_files(yr)
        
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (ipondn_work_bry, ipondn_bry) 
+     
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file  
+      fieldname1='Tsnz_N_bry'
+      fieldname2='Tsnz_S_bry'
+      fieldname3='Tsnz_W_bry'
+      fieldname4='Tsnz_E_bry'
 
+      call read_bry_snow_data_nc_4D (read1, 0, fyear, ixm, ixx, ixp, &
+                maxrec, data_file,fieldname1,fieldname2, &
+                fieldname3,fieldname4,Tsnz_work_bry, &
+                field_loc_center, field_type_scalar)
+     
+      call interp_coeff (recnum, recslot, secday, dataloc)
+      call interpolate_data_n_snow_layer (Tsnz_work_bry, Tsnz_bry) 
+
+      !call file_year_bry (data_file, fyear) ! Ensure correct year-file
       !fieldname1='hbrine_N_bry'
       !fieldname2='hbrine_S_bry'
       !fieldname3='hbrine_W_bry'
@@ -6516,6 +6567,7 @@ subroutine boundary_files(yr)
       !call interp_coeff (recnum, recslot, secday, dataloc)
       !call interpolate_data_n (hbrine_work_bry, hbrine_bry) 
 
+      !call file_year_bry (data_file, fyear) ! Ensure correct year-file
       !fieldname1='fbrine_N_bry'
       !fieldname2='fbrine_S_bry'
       !fieldname3='fbrine_W_bry'
@@ -6528,7 +6580,8 @@ subroutine boundary_files(yr)
       ! 
       !call interp_coeff (recnum, recslot, secday, dataloc)
       !call interpolate_data_n (fbrine_work_bry, fbrine_bry) 
-  
+       
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='iage_N_bry'
       fieldname2='iage_S_bry'
       fieldname3='iage_W_bry'
@@ -6542,6 +6595,7 @@ subroutine boundary_files(yr)
       call interp_coeff (recnum, recslot, secday, dataloc)
       call interpolate_data_n (iage_work_bry, iage_bry) 
 
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='Tinz_N_bry'
       fieldname2='Tinz_S_bry'
       fieldname3='Tinz_W_bry'
@@ -6556,7 +6610,8 @@ subroutine boundary_files(yr)
     
       call interpolate_data_n_layer &
               (Tinz_work_bry,Tinz_bry)
-   
+
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file 
       fieldname1='Sinz_N_bry'
       fieldname2='Sinz_S_bry'
       fieldname3='Sinz_W_bry'
@@ -6572,19 +6627,42 @@ subroutine boundary_files(yr)
       call interpolate_data_n_layer &
               (Sinz_work_bry,Sinz_bry)
            
-      !if (my_task == master_task ) then
-      !write (nu_diag,*) 'vsnon_N_bry =',vsnon_work_bry(2,ny_block,2,1,1:max_blocks)
-      !write (nu_diag,*) 'vsnon_N =',vsnon_bry(2,ny_block,2,1:max_blocks)
-      !write (nu_diag,*) 'Tinz_N_w =',Tinz_work_bry(2,ny_block,:,2,1,1:max_blocks),&
-      !                   'Tinz_N =',Tinz_bry(2,ny_block,:,2,1:max_blocks) 
-      !endif
+      !pedrocice start 
+      fieldname1='uvel_N_bry' 
+      fieldname2='uvel_S_bry' 
+      fieldname3='uvel_W_bry' 
+      fieldname4='uvel_E_bry' 
+      
+      call read_bry_ice_data_nc (read1, 0, fyear, ixm, ixx, ixp, &
+                maxrec, data_file,fieldname1,fieldname2, &
+                fieldname3,fieldname4,uvel_work_bry, &
+                field_loc_center, field_type_scalar)
 
-      !if (my_task == master_task ) then
-      !     write (nu_diag,*) 'boundary_data end'
-      !end if 
+      call interp_coeff (recnum, recslot, secday, dataloc)
+
+      call interpolate_data &
+              (uvel_work_bry,uvel_bry)
+
+      fieldname1='vvel_N_bry'
+      fieldname2='vvel_S_bry'
+      fieldname3='vvel_W_bry'
+      fieldname4='vvel_E_bry'
+
+      call read_bry_ice_data_nc (read1, 0, fyear, ixm, ixx, ixp, &
+                maxrec, data_file,fieldname1,fieldname2, &
+                fieldname3,fieldname4,vvel_work_bry, &
+                field_loc_center, field_type_scalar)
+
+      call interp_coeff (recnum, recslot, secday, dataloc)
+
+      call interpolate_data &
+              (vvel_work_bry,vvel_bry)
+
+      !pedrocice end
       
 
       end subroutine boundary_data
+
 
 !=======================================================================
       subroutine read_bry_ice_data_nc_2D (flag, recd, yr, ixm, ixx, ixp, &
@@ -7064,6 +7142,167 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 #endif
       end subroutine read_bry_ice_data_nc_4D
 !=======================================================================
+subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+                            maxrec, data_file, fieldname1, &
+                            fieldname2,fieldname3,fieldname4,&
+                            field_data, field_loc, field_type)
+        
+! This routine reads daily boundary data
+! If data is at the end of a one-year record, get data from the
+! following year.
+! If no later data exists (end of fyear_final), then
+! let the ixp value equal the last value of the year.
+
+!
+! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+! Modified:Nov 2018 
+
+      use ice_constants, only: c0
+      use ice_diagnostics, only: check_step
+      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
+
+      logical (kind=log_kind), intent(in) :: flag
+
+      integer (kind=int_kind), intent(in) :: &
+         recd                , & ! baseline record number
+         yr                  , & ! year of forcing data
+         ixm, ixx, ixp       , & ! record numbers of 3 data values
+                                 ! relative to recd
+         maxrec                  ! maximum record value
+
+      character (char_len_long) :: &
+         data_file               ! data file to be read
+
+      character (char_len), intent(in) :: &
+         fieldname1, &               ! field name in netCDF file
+         fieldname2, &  
+         fieldname3, &  
+         fieldname4  
+ 
+      integer (kind=int_kind), intent(in) :: &
+           field_loc, &      ! location of field on staggered grid
+           field_type        ! type of field (scalar, vector, angle)
+           
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat,2,max_blocks), &
+         intent(out) :: &
+         field_data              ! 2 values needed for interpolation
+
+      ! local variables
+
+      logical ::debug
+
+#ifdef ncdf 
+      integer (kind=int_kind) :: &
+         nrec             , & ! record number to read
+         n4               , & ! like ixp, but
+                              ! adjusted at beginning and end of data
+         arg              , & ! value of time argument in field_data
+         fid                  ! file id for netCDF routines
+
+      call ice_timer_start(timer_readwrite)  ! reading/writing
+
+      if (istep1 > check_step) dbug = .true.  !! debugging
+
+!jd      debug=.true.
+      debug=.false.
+      if (dbug) debug=.true.
+      !if (my_task == master_task ) then
+      !     write (nu_diag,*) 'flag =',flag
+      !end if
+
+!METNO START
+      if (flag) then
+      !if (my_task == master_task ) then
+      !     write (nu_diag,*) 'flag 2 =',flag
+      !end if
+      !if (my_task==master_task .and. (dbug)) then
+      !   write(nu_diag,*) ' ', trim(data_file),' ',&
+      !        trim(fieldname1),' ',trim(fieldname2),' ',&
+      !        trim(fieldname3),' ',trim(fieldname4)
+      !endif
+!METNO END
+      !-----------------------------------------------------------------
+      ! Initialize record counters
+      ! (n4 will change only at the end of
+      !  a forcing cycle.)
+      !-----------------------------------------------------------------
+
+         n4 = ixp
+         arg = 0
+
+      !-----------------------------------------------------------------
+      ! read data
+      !-----------------------------------------------------------------
+
+         ! always read ixx data from data file for current year
+         
+         call ice_open_nc (data_file, fid)
+
+         arg = arg + 1
+         nrec = recd + ixx
+
+!jd
+         if (my_task==master_task .and. (debug)) &
+              write(nu_diag,*) ' ', trim(data_file),' ',&
+              trim(fieldname1),' ',trim(fieldname2),' ',&
+              trim(fieldname3),' ',trim(fieldname4),' ', &
+              ' reading nrec ', nrec, ' into slot ', arg
+!jd
+         call snow_read_nc_bry_4D & 
+              (fid, nrec, fieldname1, fieldname2, &
+               fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
+               field_loc, field_type)
+
+         if (ixp /= -99) then
+         ! currently in latter half of data interval
+            if (ixx==maxrec) then
+               if (yr < fyear_final) then ! get data from following year
+                  call ice_close_nc(fid)
+                  call file_year_bry (data_file, yr+1)
+                  call ice_open_nc (data_file, fid)
+               else             ! yr = fyear_final, no more data exists
+                  if (maxrec > 12) then ! extrapolate from ixx
+                     n4 = ixx
+                  else          ! go to beginning of fyear_init
+                     call ice_close_nc(fid)
+                     call file_year_bry (data_file, fyear_init)
+                     call ice_open_nc (data_file, fid)
+
+                  endif
+               endif            ! yr < fyear_final
+            endif               ! ixx = maxrec
+
+            arg = arg + 1
+            nrec = recd + n4
+
+!jd
+!            if (my_task==master_task .and. (debug)) &
+!                 write(nu_diag,*) ' ', trim(data_file),' ',&
+!                 trim(fieldname1),' ',trim(fieldname2),' ',&
+!                 trim(fieldname3),' ',trim(fieldname4),' ',&
+!                 ' reading nrec 4D', nrec, ' into slot ', arg
+!jd
+
+            call snow_read_nc_bry_4D & 
+                 (fid, nrec, fieldname1, fieldname2, &
+                  fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
+                  field_loc, field_type)
+         endif                  ! ixp /= -99
+
+         call ice_close_nc(fid)
+
+      endif                     ! flag
+
+      call ice_timer_stop(timer_readwrite)  ! reading/writing
+      dbug=.false.
+#else
+      field_data = c0 ! to satisfy intent(out) attribute
+#endif
+      end subroutine read_bry_snow_data_nc_4D
+
+
+!=======================================================================
        subroutine interpolate_data_n (field_data, field)
 
 ! Linear interpolation for variables belonging to various ice types
@@ -7139,6 +7378,47 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
       !$OMP END PARALLEL DO
 
       end subroutine interpolate_data_n_layer
+
+subroutine interpolate_data_n_snow_layer (field_data, field)
+
+! Linear interpolation for variables belonging to various ice types and layers
+
+! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
+! Modified:Nov 2017 
+
+      use ice_domain, only: nblocks
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat,2,max_blocks), &
+        intent(in) :: &
+        field_data    ! 2 values used for interpolation
+
+      real (kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat,max_blocks), &
+        intent(out) :: &
+        field         ! interpolated field
+
+      ! local variables
+
+      integer (kind=int_kind) :: n,i,j,k,iblk
+
+      !$OMP PARALLEL DO PRIVATE(iblk,i,j)
+      do iblk = 1, nblocks
+         do k = 1, nslyr
+         do j = 1, ny_block
+         do i = 1, nx_block
+         do n = 1, ncat
+            field(i,j,k,n,iblk) = c1intp * field_data(i,j,k,n,1,iblk) &
+                            + c2intp * field_data(i,j,k,n,2,iblk)
+         enddo
+         enddo
+         enddo
+         enddo
+      enddo
+      !$OMP END PARALLEL DO
+
+      end subroutine interpolate_data_n_snow_layer
+
+!Pedro stuff ends  
+!=======================================================================
 
 !Pedro Duarte (NPI) stuff ends  
 !=======================================================================

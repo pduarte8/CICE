@@ -58,8 +58,9 @@
    logical (kind=log_kind), public :: &
       maskhalo_dyn   , & ! if true, use masked halo updates for dynamics
       maskhalo_remap , & ! if true, use masked halo updates for transport
-      maskhalo_bound     ! if true, use masked halo updates for bound_state
-
+      maskhalo_bound , & ! if true, use masked halo updates for bound_state
+      sea_ice_time_bry   ! if true, use time-varying sea-ice boundary files
+                         ! Should be used with "open" ew and ns boundaries
 !-----------------------------------------------------------------------
 !
 !   module private variables - for the most part these appear as
@@ -128,7 +129,8 @@
                          ns_boundary_type,  &
                          maskhalo_dyn,      &
                          maskhalo_remap,    &
-                         maskhalo_bound
+                         maskhalo_bound,    &
+                         sea_ice_time_bry
 
 !----------------------------------------------------------------------
 !
@@ -146,6 +148,8 @@
    maskhalo_dyn      = .false.     ! if true, use masked halos for dynamics
    maskhalo_remap    = .false.     ! if true, use masked halos for transport
    maskhalo_bound    = .false.     ! if true, use masked halos for bound_state
+   sea_ice_time_bry  = .false.     ! if true, use time-varying sea-ice boundary files
+                                   ! Should be used with "open" ew and ns boundaries
    max_blocks        = -1           ! max number of blocks per processor
    block_size_x      = -1          ! size of block in first horiz dimension
    block_size_y      = -1          ! size of block in second horiz dimension
@@ -182,6 +186,7 @@
    call broadcast_scalar(maskhalo_dyn,      master_task)
    call broadcast_scalar(maskhalo_remap,    master_task)
    call broadcast_scalar(maskhalo_bound,    master_task)
+   call broadcast_scalar(sea_ice_time_bry,  master_task) 
    if (my_task == master_task) then
      if (max_blocks < 1) then
        max_blocks=int(                                        &
@@ -258,6 +263,7 @@
      write(nu_diag,'(a,l6)')  '  maskhalo_dyn          = ', maskhalo_dyn
      write(nu_diag,'(a,l6)')  '  maskhalo_remap        = ', maskhalo_remap
      write(nu_diag,'(a,l6)')  '  maskhalo_bound        = ', maskhalo_bound
+     write(nu_diag,'(a,l6)')  '  sea_ice_time_bry      = ', sea_ice_time_bry                             
      write(nu_diag,'(a,2i6)') '  block_size_x,_y       = ', block_size_x, block_size_y
      write(nu_diag,'(a,i6)')  '  max_blocks            = ', max_blocks
      write(nu_diag,'(a,i6,/)')'  Number of ghost cells = ', nghost

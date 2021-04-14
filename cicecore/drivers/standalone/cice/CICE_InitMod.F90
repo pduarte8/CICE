@@ -68,14 +68,15 @@
           init_calendar, calendar
       use ice_communicate, only: init_communicate, my_task, master_task
       use ice_diagnostics, only: init_diags
-      use ice_domain, only: init_domain_blocks
+      use ice_domain, only: init_domain_blocks,sea_ice_time_bry
       use ice_domain_size, only: ncat, nfsd
       use ice_dyn_eap, only: init_eap, alloc_dyn_eap
       use ice_dyn_shared, only: kdyn, init_evp, alloc_dyn_shared
       use ice_flux, only: init_coupler_flux, init_history_therm, &
           init_history_dyn, init_flux_atm, init_flux_ocn, alloc_flux
       use ice_forcing, only: alloc_forcing, init_forcing_ocn, init_forcing_atmo, &
-          get_forcing_atmo, get_forcing_ocn, get_wave_spec
+          get_forcing_atmo, get_forcing_ocn, get_wave_spec, &
+          init_forcing_bry, get_forcing_bry
       use ice_forcing_bgc, only: get_forcing_bgc, get_atm_bgc, &
           faero_default, faero_optics, alloc_forcing_bgc
       use ice_grid, only: init_grid1, init_grid2, alloc_grid
@@ -203,13 +204,13 @@
    !--------------------------------------------------------------------
 
       call init_forcing_atmo    ! initialize atmospheric forcing (standalone)
-
+      if (sea_ice_time_bry) call init_forcing_bry ! sea-ice time varying boundaries  
 #ifndef coupled
 #ifndef CESMCOUPLED
       if (tr_fsd .and. wave_spec) call get_wave_spec ! wave spectrum in ice
       call get_forcing_atmo     ! atmospheric forcing from data
       call get_forcing_ocn(dt)  ! ocean forcing from data
-
+      if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data
       ! aerosols
       ! if (tr_aero)  call faero_data                   ! data file
       ! if (tr_zaero) call fzaero_data                  ! data file (gx1)

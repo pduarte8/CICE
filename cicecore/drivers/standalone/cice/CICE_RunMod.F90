@@ -45,12 +45,13 @@
 
       use ice_calendar, only: istep, istep1, time, dt, stop_now, calendar
       use ice_forcing, only: get_forcing_atmo, get_forcing_ocn, &
-          get_wave_spec
+          get_wave_spec, get_forcing_bry
       use ice_forcing_bgc, only: get_forcing_bgc, get_atm_bgc, &
           faero_default
       use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
+      use ice_domain, only:sea_ice_time_bry
       logical (kind=log_kind) :: &
           tr_aero, tr_zaero, skl_bgc, z_tracers, wave_spec, tr_fsd
       character(len=*), parameter :: subname = '(CICE_Run)'
@@ -99,7 +100,7 @@
 !         if (tr_fsd .and. wave_spec) call get_wave_spec ! wave spectrum in ice
          call get_forcing_atmo     ! atmospheric forcing from data
          call get_forcing_ocn(dt)  ! ocean forcing from data
-
+         if (sea_ice_time_bry)call get_forcing_bry      ! sea-ice boundary data
          ! aerosols
          ! if (tr_aero)  call faero_data                   ! data file
          ! if (tr_zaero) call fzaero_data                  ! data file (gx1)

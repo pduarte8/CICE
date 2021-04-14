@@ -10,8 +10,14 @@
       use ice_blocks, only: nx_block, ny_block
       use ice_constants, only: c0, c1, c2, p2
       use ice_domain_size, only: ncat, max_blocks
-      use ice_forcing, only: trestore, trest
-      use ice_state, only: aicen, vicen, vsnon, trcrn
+      use ice_forcing, only: trestore, trest, &
+          aicen_bry, vicen_bry, vsnon_bry, &  !Pedro NPI
+          Tsfc_bry, Tinz_bry, Sinz_bry, alvln_bry,vlvln_bry,&
+          apondn_bry, hpondn_bry, ipondn_bry,iage_bry, Tsnz_bry, &
+          uvel_bry, vvel_bry   
+
+      use ice_state, only: aicen, vicen, vsnon, trcrn, &
+          uvel, vvel !Pedro NPI                    
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_bound
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
@@ -20,6 +26,7 @@
       use icepack_intfc, only: icepack_query_parameters, &
           icepack_query_tracer_sizes, icepack_query_tracer_flags, &
           icepack_query_tracer_indices
+      use ice_domain, only:sea_ice_time_bry !Pedro NPI
 
       implicit none
       private
@@ -27,7 +34,11 @@
 
       logical (kind=log_kind), public :: &
          restore_ice                 ! restore ice state if true
-
+    
+      real (kind=dbl_kind), dimension (:,:,:), allocatable :: & ! Pedro NPI
+         uvel_rest , & ! ice velocity
+         vvel_rest 
+  
       !-----------------------------------------------------------------
       ! state of the ice for each category
       !-----------------------------------------------------------------
@@ -96,7 +107,10 @@
    allocate (aicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vsnon_rest(nx_block,ny_block,ncat,max_blocks), &
-             trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks))
+             trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks), &
+             uvel_rest(nx_block,ny_block,max_blocks),&  !pedrocice
+             vvel_rest(nx_block,ny_block,max_blocks))   !pedrocice
+
 
 !-----------------------------------------------------------------------
 ! initialize
@@ -552,7 +566,12 @@
       use ice_calendar, only: dt
       use ice_domain, only: ew_boundary_type, ns_boundary_type, &
           nblocks, blocks_ice
-
+      use ice_domain_size, only: nilyr, nslyr
+      use ice_constants, only: p01 
+   
+      use icepack_mushy_physics, only: enthalpy_snow, enthalpy_mush
+      use ice_flux, only: Tmltz
+      use ice_dyn_shared, only: a_min
 !-----------------------------------------------------------------------
 !
 !  local variables
@@ -564,30 +583,67 @@
      ilo,ihi,jlo,jhi,    &! beginning and end of physical domain
      ibc,                &! ghost cell column or row
      ntrcr,              &! 
+     nbtrcr,             &
      npad                 ! padding column/row counter
 
    type (block) :: &
      this_block  ! block info for current block
 
-   real (dbl_kind) :: &
-     secday,             &!
-     ctime                ! dt/trest
-
    character(len=*), parameter :: subname = '(ice_HaloRestore)'
 
+   real (dbl_kind) :: &
+     secday, &
+     ctime, &            ! dt/trest
+     Ti, &
+     hs_min, &
+     hi_min, &
+     rhoi, rhos, Lfresh, &
+     cp_ice, cp_ocn, Tsmelt, Tffresh
+
+   logical(kind=log_kind) :: &
+         lsnow, &          ! snow presence: T: has snow, F: no snow
+         lice, &           ! ice presence: T: has ice, F: no ice
+         tr_brine, &
+         tr_pond_lvl
+
+   integer (kind=int_kind) :: &  ! Pedro NPI
+         k           , & ! ice layer index
+         nt_Tsfc     , & 
+         nt_fbri     , & 
+         nt_qice     , & 
+         nt_sice     , & 
+         nt_qsno     , & 
+         nt_vlvl     , & 
+         nt_alvl     , &
+         nt_iage     , &
+         nt_apnd     , &
+         nt_hpnd     , &
+         nt_ipnd     , &
+         ktherm
+
    call ice_timer_start(timer_bound)
-   call icepack_query_parameters(secday_out=secday)
-   call icepack_query_tracer_sizes(ntrcr_out=ntrcr)
+   
    call icepack_warnings_flush(nu_diag)
    if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
       file=__FILE__, line=__LINE__)
 
+   call icepack_query_tracer_flags(tr_brine_out=tr_brine, &
+           tr_pond_lvl_out=tr_pond_lvl)
+   call icepack_query_tracer_indices(nt_Tsfc_out=nt_Tsfc, nt_fbri_out=nt_fbri, &
+           nt_qice_out=nt_qice, nt_sice_out=nt_sice, nt_qsno_out=nt_qsno, &
+           nt_vlvl_out=nt_vlvl, nt_alvl_out=nt_alvl, nt_iage_out=nt_iage, &
+           nt_apnd_out=nt_apnd, nt_hpnd_out=nt_hpnd, nt_ipnd_out=nt_ipnd)
+   call icepack_query_parameters(ktherm_out=ktherm,hs_min_out=hs_min, &
+           rhoi_out=rhoi,rhos_out=rhos,Lfresh_out=Lfresh, &
+           cp_ice_out=cp_ice, cp_ocn_out=cp_ocn, &
+           Tsmelt_out=Tsmelt, Tffresh_out=Tffresh,secday_out=secday)
+   call icepack_query_tracer_sizes(ntrcr_out=ntrcr,nbtrcr_out=nbtrcr)
 !-----------------------------------------------------------------------
 !
 !  Initialize
 !
 !-----------------------------------------------------------------------
-
+      hi_min = p01;
       ! for now, use same restoring constant as for SST
       if (trestore == 0) then
          trest = dt          ! use data instantaneously
@@ -611,21 +667,128 @@
          jlo = this_block%jlo
          jhi = this_block%jhi
 
+      !write (nu_diag,*) 'iblock= ',this_block%iblock
+      !write (nu_diag,*) 'jblock= ',this_block%jblock
+      
       if (this_block%iblock == 1) then              ! west edge
          if (trim(ew_boundary_type) /= 'cyclic') then
             do n = 1, ncat
             do j = 1, ny_block
             do i = 1, ilo
+               if (sea_ice_time_bry) then
+                  aicen_rest(i,j,n,iblk) = aicen_bry(1,j,n,iblk)
+                  vicen_rest(i,j,n,iblk) = vicen_bry(1,j,n,iblk)
+                  vsnon_rest(i,j,n,iblk) = vsnon_bry(1,j,n,iblk) 
+                  ! Check to see if there is ice/snow 
+                  if (aicen(i,j,n,iblk) > a_min) then
+                     lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                     lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+                  else
+                     lsnow = .false.
+                     lice  = .false.
+                  endif 
+                  ! If there is ice assume last model calculated Tsfc, else use boundary values
+                  if (lice) then
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = trcrn(i,j,nt_Tsfc,n,iblk)
+                  else
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = Tsfc_bry(1,j,n,iblk)
+                  endif
+                     
+                  trcrn_rest(i,j,nt_alvl,n,iblk) = alvln_bry(1,j,n,iblk)
+                  trcrn_rest(i,j,nt_vlvl,n,iblk) = vlvln_bry(1,j,n,iblk) 
+                  trcrn_rest(i,j,nt_iage,n,iblk) = iage_bry(1,j,n,iblk) 
+                  uvel_rest(i,j,iblk) = uvel_bry(1,j,iblk); ! pedrocice
+                  vvel_rest(i,j,iblk) = vvel_bry(1,j,iblk); ! pedrocice 
+                  if (tr_pond_lvl) then
+                     trcrn_rest(i,j,nt_apnd,n,iblk) = apondn_bry(1,j,n,iblk) 
+                     trcrn_rest(i,j,nt_hpnd,n,iblk) = hpondn_bry(1,j,n,iblk)
+                     trcrn_rest(i,j,nt_ipnd,n,iblk) = ipondn_bry(1,j,n,iblk)  
+                  endif
+                  ! If there is ice assume its thermodynamic properties, else use boundary values
+                  do k = 1,nilyr
+                     trcrn_rest(i,j,nt_sice+k-1,n,iblk) = &
+                           Sinz_bry(1,j,k,n,iblk) 
+                     if (lice) then
+                        trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           trcrn(i,j,nt_qice+k-1,n,iblk)   
+                     else 
+                        if (ktherm == 2) then
+                        ! enthalpy
+                          trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                            enthalpy_mush(Tinz_bry(1,j,k,n,iblk), &
+                                      Sinz_bry(1,j,k,n,iblk))
+                        else
+                          trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                            -(rhoi * (cp_ice*(Tmltz(1,j,k,iblk)-&
+                              Tinz_bry(1,j,k,n,iblk)) &
+                            + Lfresh*(c1-Tmltz(1,j,k,iblk)/ &
+                              Tinz_bry(1,j,k,n,iblk)) &
+                              - cp_ocn*Tmltz(1,j,k,iblk)))
+                        endif
+                     endif
+                  enddo
+                  ! If there is snow assume its thermodynamic properties, else use boundary values        
+                  do k = 1, nslyr  
+                     if (lsnow) then 
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = &
+                           min(trcrn(i,j,nt_qsno+k-1,n,iblk),&
+                               -rhos*(Lfresh - cp_ice * c0-p01))     
+                     else 
+                        Tsnz_bry(1,j,k,n,iblk) = &
+                           min(Tsnz_bry(1,j,k,n,iblk),c0-p01)
+                        Ti = Tsnz_bry(1,j,k,n,iblk)
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = -rhos* &
+                        (Lfresh - cp_ice * Ti) 
+                     endif 
+                  enddo
+               endif
                aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                   + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
                   + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
                vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
                   + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               uvel(i,j,iblk) = uvel(i,j,iblk) &     ! pedrocice
+                  + (uvel_rest(i,j,iblk)-uvel(i,j,iblk)) * ctime                 
+               vvel(i,j,iblk) = vvel(i,j,iblk) &     ! pedrocice 
+                  + (vvel_rest(i,j,iblk)-vvel(i,j,iblk)) * ctime  
+  
+               ! Check again to see if there is ice/snow after relaxing to boundary values
+               if (aicen(i,j,n,iblk) > a_min) then
+                  lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                  lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+               else
+                  lsnow = .false.
+                  lice  = .false.
+               endif 
+               ! Is there is ice relax all tracers to boundary values except thermodynamic ones
+               ! If there no ice set tracers to zero except snow and ice enthalpies to avoid
+               ! strange temperatures
+               if (lice) then
+                do nt = 1, ntrcr-nbtrcr 
+                  if (((nt < nt_qsno).or.(nt > nt_qsno+nslyr-1)).and.&
+                      ((nt < nt_qice).or.(nt > nt_qice+nilyr-1)).and.&
+                      (nt.NE.nt_Tsfc)) then
+                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))&
+                        *ctime
+                  else
+                      trcrn(i,j,nt,n,iblk) = trcrn_rest(i,j,nt,n,iblk);
+                  endif
+                enddo
+               else
+                 do nt = 1, ntrcr-nbtrcr  
+                  ! Enthalpies of snow and ice are calculated for temperatures slightly below zero
+                  ! in order to try not exceeding Tmax values
+                   if ((nt >= nt_qsno).and.(nt <= nt_qsno+nslyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_snow(c0-p01)    
+                   else if ((nt >= nt_qice).and.(nt <= nt_qice+nilyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_mush(c0-p01,c0)   
+                   else
+                        trcrn(i,j,nt,n,iblk) = c0
+                   endif
+                 enddo
+               endif
             enddo
             enddo
             enddo
@@ -649,16 +812,116 @@
             do n = 1, ncat
             do j = 1, ny_block
             do i = ihi, ibc
+               if (sea_ice_time_bry) then
+                  aicen_rest(i,j,n,iblk) = aicen_bry(ibc,j,n,iblk)
+                  vicen_rest(i,j,n,iblk) = vicen_bry(ibc,j,n,iblk)
+                  vsnon_rest(i,j,n,iblk) = vsnon_bry(ibc,j,n,iblk) 
+
+                  if (aicen(i,j,n,iblk) > a_min) then
+                     lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                     lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+                  else
+                     lsnow = .false.
+                     lice  = .false.
+                  endif 
+
+                  if (lice) then
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = trcrn(i,j,nt_Tsfc,n,iblk)
+                  else
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = Tsfc_bry(ibc,j,n,iblk) 
+                  endif
+                  
+                  trcrn_rest(i,j,nt_alvl,n,iblk) = alvln_bry(ibc,j,n,iblk)
+                  trcrn_rest(i,j,nt_vlvl,n,iblk) = vlvln_bry(ibc,j,n,iblk) 
+                  trcrn_rest(i,j,nt_iage,n,iblk) = iage_bry(ibc,j,n,iblk) 
+                  uvel_rest(i,j,iblk) = uvel_bry(ibc,j,iblk); ! pedrocice
+                  vvel_rest(i,j,iblk) = vvel_bry(ibc,j,iblk); ! pedrocice 
+
+                  if (tr_pond_lvl) then
+                     trcrn_rest(i,j,nt_apnd,n,iblk) = apondn_bry(ibc,j,n,iblk) 
+                     trcrn_rest(i,j,nt_hpnd,n,iblk) = hpondn_bry(ibc,j,n,iblk)
+                     trcrn_rest(i,j,nt_ipnd,n,iblk) = ipondn_bry(ibc,j,n,iblk)  
+                  endif 
+                  do k = 1,nilyr
+                     trcrn_rest(i,j,nt_sice+k-1,n,iblk) = Sinz_bry(ibc,j,k,n,iblk) 
+                     if (lice) then
+                        trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           trcrn(i,j,nt_qice+k-1,n,iblk)   
+                     else  
+                        if (ktherm == 2) then
+                        ! enthalpy
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                              enthalpy_mush(Tinz_bry(ibc,j,k,n,iblk), &
+                                       Sinz_bry(ibc,j,k,n,iblk))
+                        else
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                            -(rhoi * (cp_ice*(Tmltz(ibc,j,k,iblk)-&
+                              Tinz_bry(ibc,j,k,n,iblk)) &
+                            + Lfresh*(c1-Tmltz(ibc,j,k,iblk)/ &
+                              Tinz_bry(ibc,j,k,n,iblk)) - &
+                              cp_ocn*Tmltz(ibc,j,k,iblk)))
+                        endif
+                     endif
+                  enddo
+                  
+                  do k = 1, nslyr  
+                     if (lsnow) then 
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = &
+                           min(trcrn(i,j,nt_qsno+k-1,n,iblk),&
+                             -rhos*(Lfresh - cp_ice * c0-p01))   
+                     else 
+                        Tsnz_bry(ibc,j,k,n,iblk) = &
+                           min(Tsnz_bry(ibc,j,k,n,iblk),c0-p01)
+                        Ti = Tsnz_bry(ibc,j,k,n,iblk)
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = -rhos* &
+                        (Lfresh -cp_ice * Ti)  
+                     endif
+                  enddo
+               endif
                aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                   + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
                   + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
                vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
                   + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               uvel(i,j,iblk) = uvel(i,j,iblk) &     ! pedrocice
+                  + (uvel_rest(i,j,iblk)-uvel(i,j,iblk)) * ctime                 
+               vvel(i,j,iblk) = vvel(i,j,iblk) &     ! pedrocice 
+                  + (vvel_rest(i,j,iblk)-vvel(i,j,iblk)) * ctime  
+
+               if (aicen(i,j,n,iblk) > a_min) then
+                  lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                  lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+               else
+                  lsnow = .false.
+                  lice  = .false.
+               endif 
+ 
+               if (lice) then
+                do nt = 1, ntrcr-nbtrcr 
+                  if (((nt < nt_qsno).or.(nt > nt_qsno+nslyr-1)).and.&
+                      ((nt < nt_qice).or.(nt > nt_qice+nilyr-1)).and.&
+                      (nt.NE.nt_Tsfc)) then
+                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))&
+                        *ctime
+                  else
+                      trcrn(i,j,nt,n,iblk) = trcrn_rest(i,j,nt,n,iblk);
+                  endif
+                enddo
+               else
+                do nt = 1, ntrcr-nbtrcr  
+                  ! Enthalpies of snow and ice are calculated for temperatures slightly below zero
+                  ! in order to try not exceeding Tmax values
+                   if ((nt >= nt_qsno).and.(nt <= nt_qsno+nslyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_snow(c0-p01)    
+                   else if ((nt >= nt_qice).and.(nt <= nt_qice+nilyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_mush(c0-p01,c0)   
+                   else
+                        trcrn(i,j,nt,n,iblk) = c0
+                   endif
+                 enddo
+               endif
             enddo
             enddo
             enddo
@@ -670,16 +933,116 @@
             do n = 1, ncat
             do j = 1, jlo
             do i = 1, nx_block
+               if (sea_ice_time_bry) then
+                  aicen_rest(i,j,n,iblk) = aicen_bry(i,1,n,iblk)
+                  vicen_rest(i,j,n,iblk) = vicen_bry(i,1,n,iblk)
+                  vsnon_rest(i,j,n,iblk) = vsnon_bry(i,1,n,iblk) 
+
+                  if (aicen(i,j,n,iblk) > a_min) then
+                     lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                     lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+                  else
+                     lsnow = .false.
+                     lice  = .false.
+                  endif 
+
+                  if (lice) then
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = trcrn(i,j,nt_Tsfc,n,iblk)
+                  else
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = Tsfc_bry(i,1,n,iblk)
+                  endif
+
+                  trcrn_rest(i,j,nt_alvl,n,iblk) = alvln_bry(i,1,n,iblk)
+                  trcrn_rest(i,j,nt_vlvl,n,iblk) = vlvln_bry(i,1,n,iblk) 
+                  trcrn_rest(i,j,nt_iage,n,iblk) = iage_bry(i,1,n,iblk) 
+                  uvel_rest(i,j,iblk) = uvel_bry(i,1,iblk); ! pedrocice
+                  vvel_rest(i,j,iblk) = vvel_bry(i,1,iblk); ! pedrocice 
+   
+                  if (tr_pond_lvl) then
+                     trcrn_rest(i,j,nt_apnd,n,iblk) = apondn_bry(i,1,n,iblk) 
+                     trcrn_rest(i,j,nt_hpnd,n,iblk) = hpondn_bry(i,1,n,iblk)
+                     trcrn_rest(i,j,nt_ipnd,n,iblk) = ipondn_bry(i,1,n,iblk)  
+                  endif    
+                  do k = 1,nilyr
+                     trcrn_rest(i,j,nt_sice+k-1,n,iblk) = Sinz_bry(i,1,k,n,iblk) 
+                     if (lice) then
+                        trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           trcrn(i,j,nt_qice+k-1,n,iblk)   
+                     else  
+                        if (ktherm == 2) then
+                        ! enthalpy
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           enthalpy_mush(Tinz_bry(i,1,k,n,iblk), &
+                                       Sinz_bry(i,1,k,n,iblk))
+                        else
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                            -(rhoi * (cp_ice*(Tmltz(i,1,k,iblk)-&
+                              Tinz_bry(i,1,k,n,iblk)) &
+                            + Lfresh*(c1-Tmltz(i,1,k,iblk)/ &
+                              Tinz_bry(i,1,k,n,iblk)) - &
+                              cp_ocn*Tmltz(i,1,k,iblk)))
+                        endif
+                     endif
+                   enddo
+                   
+                   do k = 1, nslyr  
+                     if (lsnow) then 
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = &
+                           min(trcrn(i,j,nt_qsno+k-1,n,iblk),&
+                              -rhos*(Lfresh - cp_ice * c0-p01))   
+                     else 
+                        Tsnz_bry(i,1,k,n,iblk) = &
+                           min(Tsnz_bry(i,1,k,n,iblk),c0-p01)
+                        Ti = Tsnz_bry(i,1,k,n,iblk)
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = -rhos* &
+                        (Lfresh - cp_ice * Ti)
+                     endif  
+                   enddo
+               endif  
                aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                   + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
                vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
                   + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
                vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
                   + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               uvel(i,j,iblk) = uvel(i,j,iblk) &     ! pedrocice
+                  + (uvel_rest(i,j,iblk)-uvel(i,j,iblk)) * ctime                 
+               vvel(i,j,iblk) = vvel(i,j,iblk) &     ! pedrocice 
+                  + (vvel_rest(i,j,iblk)-vvel(i,j,iblk)) * ctime  
+
+               if (aicen(i,j,n,iblk) > a_min) then
+                  lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                  lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+               else
+                  lsnow = .false.
+                  lice  = .false.
+               endif 
+ 
+               if (lice) then
+                do nt = 1, ntrcr-nbtrcr 
+                  if (((nt < nt_qsno).or.(nt > nt_qsno+nslyr-1)).and.&
+                      ((nt < nt_qice).or.(nt > nt_qice+nilyr-1)).and.&
+                      (nt.NE.nt_Tsfc)) then
+                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))&
+                        *ctime
+                  else
+                      trcrn(i,j,nt,n,iblk) = trcrn_rest(i,j,nt,n,iblk);
+                  endif
+                enddo
+               else
+                do nt = 1, ntrcr-nbtrcr  
+                  ! Enthalpies of snow and ice are calculated for temperatures slightly below zero
+                  ! in order to try not exceeding Tmax values
+                   if ((nt >= nt_qsno).and.(nt <= nt_qsno+nslyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_snow(c0-p01)    
+                   else if ((nt >= nt_qice).and.(nt <= nt_qice+nilyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_mush(c0-p01,c0)   
+                   else
+                        trcrn(i,j,nt,n,iblk) = c0
+                   endif
+                 enddo
+               endif
             enddo
             enddo
             enddo
@@ -701,20 +1064,119 @@
                endif
                if (npad /= 0) ibc = ibc - 1
             enddo
-
             do n = 1, ncat
             do j = jhi, ibc
             do i = 1, nx_block
+               if (sea_ice_time_bry) then 
+                  aicen_rest(i,j,n,iblk) = aicen_bry(i,ibc,n,iblk)
+                  vicen_rest(i,j,n,iblk) = vicen_bry(i,ibc,n,iblk)
+                  vsnon_rest(i,j,n,iblk) = vsnon_bry(i,ibc,n,iblk) 
+
+                  if (aicen(i,j,n,iblk) > a_min) then
+                     lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                     lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+                  else
+                     lsnow = .false.
+                     lice  = .false.
+                  endif 
+
+                  if (lice) then
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = trcrn(i,j,nt_Tsfc,n,iblk)
+                  else
+                     trcrn_rest(i,j,nt_Tsfc,n,iblk) = Tsfc_bry(i,ibc,n,iblk)  
+                  endif
+
+                  trcrn_rest(i,j,nt_alvl,n,iblk) = alvln_bry(i,ibc,n,iblk)
+                  trcrn_rest(i,j,nt_vlvl,n,iblk) = vlvln_bry(i,ibc,n,iblk) 
+                  trcrn_rest(i,j,nt_iage,n,iblk) = iage_bry(i,ibc,n,iblk) 
+                  uvel_rest(i,j,iblk) = uvel_bry(i,ibc,iblk); ! pedrocice
+                  vvel_rest(i,j,iblk) = vvel_bry(i,ibc,iblk); ! pedrocice 
+
+                  if (tr_pond_lvl) then
+                     trcrn_rest(i,j,nt_apnd,n,iblk) = apondn_bry(i,ibc,n,iblk) 
+                     trcrn_rest(i,j,nt_hpnd,n,iblk) = hpondn_bry(i,ibc,n,iblk)
+                     trcrn_rest(i,j,nt_ipnd,n,iblk) = ipondn_bry(i,ibc,n,iblk)  
+                  endif    
+                  do k = 1,nilyr
+                     trcrn_rest(i,j,nt_sice+k-1,n,iblk) = Sinz_bry(i,ibc,k,n,iblk)    
+                     if (lice) then
+                        trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           trcrn(i,j,nt_qice+k-1,n,iblk)   
+                     else    
+                        if (ktherm == 2) then
+                        ! enthalpy
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                           enthalpy_mush(Tinz_bry(i,ibc,k,n,iblk), &
+                                       Sinz_bry(i,ibc,k,n,iblk))
+                        else
+                           trcrn_rest(i,j,nt_qice+k-1,n,iblk) = &
+                            -(rhoi * (cp_ice*(Tmltz(i,ibc,k,iblk)-&
+                              Tinz_bry(i,ibc,k,n,iblk)) &
+                            + Lfresh*(c1-Tmltz(i,ibc,k,iblk)/ &
+                              Tinz_bry(i,ibc,k,n,iblk)) - &
+                              cp_ocn*Tmltz(i,ibc,k,iblk)))
+                        endif
+                     endif
+                  enddo  
+                  
+                  do k = 1, nslyr  
+                     if (lsnow) then 
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = &
+                           min(trcrn(i,j,nt_qsno+k-1,n,iblk),&
+                               -rhos*(Lfresh - cp_ice * c0-p01))   
+                     else   
+                        Tsnz_bry(i,ibc,k,n,iblk) = &
+                           min(Tsnz_bry(i,ibc,k,n,iblk),c0-p01) 
+                        Ti = Tsnz_bry(i,ibc,k,n,iblk)
+                        trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = -rhos* &
+                        (Lfresh - cp_ice * Ti)
+                     endif  
+                  enddo
+               endif 
                aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
                   + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
+               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &                  
                   + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
                vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
                   + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
+               uvel(i,j,iblk) = uvel(i,j,iblk) &     ! pedrocice
+                  + (uvel_rest(i,j,iblk)-uvel(i,j,iblk)) * ctime                 
+               vvel(i,j,iblk) = vvel(i,j,iblk) &     ! pedrocice 
+                  + (vvel_rest(i,j,iblk)-vvel(i,j,iblk)) * ctime  
+
+               if (aicen(i,j,n,iblk) > a_min) then
+                  lsnow = (vsnon(i,j,n,iblk)/aicen(i,j,n,iblk) > hs_min)
+                  lice  = (vicen(i,j,n,iblk)/aicen(i,j,n,iblk) > hi_min)
+               else
+                  lsnow = .false.
+                  lice  = .false.
+               endif 
+ 
+               if (lice) then
+                do nt = 1, ntrcr-nbtrcr 
+                  if (((nt < nt_qsno).or.(nt > nt_qsno+nslyr-1)).and.&
+                      ((nt < nt_qice).or.(nt > nt_qice+nilyr-1)).and.&
+                      (nt.NE.nt_Tsfc)) then
+                      trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
+                        + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))&
+                        *ctime
+                  else
+                      trcrn(i,j,nt,n,iblk) = trcrn_rest(i,j,nt,n,iblk);
+                  endif
+                enddo
+               else
+                do nt = 1, ntrcr-nbtrcr  
+                  ! Enthalpies of snow and ice are calculated for temperatures slightly below zero
+                  ! in order to try not exceeding Tmax values
+                   if ((nt >= nt_qsno).and.(nt <= nt_qsno+nslyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_snow(c0-p01)    
+                   else if ((nt >= nt_qice).and.(nt <= nt_qice+nilyr-1)) then 
+                        trcrn(i,j,nt,n,iblk) = enthalpy_mush(c0-p01,c0)   
+                   else
+                        trcrn(i,j,nt,n,iblk) = c0
+                   endif
+                 enddo
+               endif
             enddo
             enddo
             enddo

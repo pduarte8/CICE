@@ -59,7 +59,7 @@
 
       use ice_broadcast, only: broadcast_scalar, broadcast_array
       use ice_diagnostics, only: diag_file, print_global, print_points, latpnt, lonpnt
-      use ice_domain, only: close_boundaries
+      use ice_domain, only: close_boundaries, sea_ice_time_bry
       use ice_domain_size, only: ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
                                  n_aero, n_zaero, n_algae, &
                                  n_doc, n_dic, n_don, n_fed, n_fep, &
@@ -87,7 +87,7 @@
           bgc_data_type, &
           ocn_data_type, ocn_data_dir,    wave_spec_file,  &
           oceanmixed_file, restore_ocn,   trestore, & 
-          ice_data_type
+          ice_data_type, sea_ice_bry_dir
       use ice_arrays_column, only: bgc_data_dir, fe_data_type
       use ice_grid, only: grid_file, gridcpl_file, kmt_file, &
                           bathymetry_file, use_bathymetry, &
@@ -208,7 +208,7 @@
         fyear_init,     ycycle,                                         &
         atm_data_dir,   ocn_data_dir,    bgc_data_dir,                  &
         atm_data_format, ocn_data_format,                               &
-        oceanmixed_file
+        oceanmixed_file, sea_ice_bry_dir
 
       !-----------------------------------------------------------------
       ! default values
@@ -359,6 +359,7 @@
       bgc_data_dir    = 'unknown_bgc_data_dir'
       ocn_data_type   = 'default'
       ocn_data_dir    = 'unknown_ocn_data_dir'
+      sea_ice_bry_dir = ' '
       oceanmixed_file = 'unknown_oceanmixed_file' ! ocean forcing data
       restore_ocn     = .false.   ! restore sst if true
       trestore        = 90        ! restoring timescale, days (0 instantaneous)
@@ -627,6 +628,7 @@
       call broadcast_scalar(bgc_data_dir,       master_task)
       call broadcast_scalar(ocn_data_type,      master_task)
       call broadcast_scalar(ocn_data_dir,       master_task)
+      call broadcast_scalar(sea_ice_bry_dir,    master_task) 
       call broadcast_scalar(oceanmixed_file,    master_task)
       call broadcast_scalar(restore_ocn,        master_task)
       call broadcast_scalar(trestore,           master_task)
@@ -1112,7 +1114,10 @@
          elseif (trim(atm_data_type)=='default') then
             write(nu_diag,*)    ' default_season            = ', trim(default_season)
          endif
-
+         if (sea_ice_time_bry) then
+            write(nu_diag,*) ' sea_ice_bry_dir           = ', &
+                               trim(sea_ice_bry_dir)
+         endif  
          write(nu_diag,1010) ' update_ocn_f              = ', update_ocn_f
          write(nu_diag,1010) ' l_mpond_fresh             = ', l_mpond_fresh
          write(nu_diag,1005) ' ustar_min                 = ', ustar_min
