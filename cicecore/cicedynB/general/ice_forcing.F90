@@ -1372,7 +1372,17 @@
 ! Works for any data interval that divides evenly into a
 !  year (daily, 6-hourly, etc.)
 ! Use interp_coef_monthly for monthly data.
+      !use ice_constants, only: c1, p5, secday
+      use ice_calendar, only: time2sec !Pedro stuff to correct the bug mentioned below
+      use ice_blocks, only: block, get_block  !Added by mitya  
+      use ice_domain,      only : nblocks, blocks_ice   
+      logical ::debug
 
+      type(block) :: this_block
+      integer (kind=int_kind) :: &
+           ilo,jlo,jhi,ihi, & ! horizontal indices
+           ini,inj,inig,injg,&
+           iblk         ! block index
       integer (kind=int_kind), intent(in) :: &
           recnum      , & ! record number for current data value
           recslot     , & ! spline slot for current record
@@ -1380,28 +1390,69 @@
                           ! = 2 for date located at end of time interval
 
       real (kind=dbl_kind), intent(in) :: &
-          secint                    ! seconds in data interval
+          secint ! seconds in data interval
+          
+                               
 
       ! local variables
 
       real (kind=dbl_kind) :: &
-          secday, &        ! seconds in a day
-          secyr            ! seconds in a year
+          secyr      ,&      ! seconds in a year
+          rsec       ,&
+          secday  
 
       real (kind=dbl_kind) :: &
           tt           , & ! seconds elapsed in current year
           t1, t2       , & ! seconds elapsed at data points
-          rcnum            ! recnum => dbl_kind
+          rcnum        , & ! recnum => dbl_kind
+          MySecs1      , &
+          MySecs2      , &
+          MySecs
+      call icepack_query_parameters(secday_out=secday) 
+!      secyr = dayyr * secday         ! seconds in a year moved down mitya
 
-      character(len=*), parameter :: subname = '(interp_coeff)'
-
-      call icepack_query_parameters(secday_out=secday)
-      call icepack_warnings_flush(nu_diag)
-      if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
-         file=__FILE__, line=__LINE__)
-
-      secyr = dayyr * secday         ! seconds in a year
-      tt = mod(ftime,secyr)
+      ! Calculating tt this way leads to a major error when ftime > seconds in a year
+      ! leading to a violation of the necessary conditions  t1<=tt<=t2 and 
+      ! negative interpolation coefficients
+      ! This bug was fixed by Pedro at NPI in 19.06.2019 with the following expressions 
+      !tt = mod(ftime,secyr)
+        
+      !tt bug fix begin:
+      
+      call time2sec(fyear,1,1,MySecs1);
+      call time2sec(fyear,month,mday,MySecs2);  !This call returns 
+                                             !time in secs at 
+                                             !beginning of mday
+                                             !Next: time is corrected
+                                             !with secs 
+      secyr = dayyr * secday         ! seconds in a year, moved from above mitya
+      MySecs = MySecs2-MySecs1
+      debug = .false.
+      if (debug) then
+         iblk=1
+         this_block =get_block(blocks_ice(iblk),iblk)                                                                                                                                                         
+         ilo = this_block%ilo
+         ihi = this_block%ihi
+         jlo = this_block%jlo
+         jhi = this_block%jhi
+         ini = 1802
+         inj = 1352
+         inig = this_block%i_glob(ihi)
+         injg = this_block%j_glob(jhi)
+      
+         if ( inig.EQ.ini.AND.injg.EQ.inj ) then
+            write(*,*) 'mitya, rsec, secyr, fyear,month, mday,nyr,Mysecs1,MySecs2,MySecs', &
+                 rsec,secyr, fyear, month, mday, nyr,MySecs1,MySecs2,MySecs
+         endif
+      endif
+      rsec = real(sec)
+      MySecs = MySecs + rsec                  !Here seconds "used" in current day are added
+      if (MySecs.GE.secyr) then
+         tt = mod(rsec,secyr)  
+      else  
+         tt = mod(MySecs,secyr)
+      endif     
+      !tt bug fix end   
 
       ! Find neighboring times
       rcnum = real(recnum,kind=dbl_kind)
@@ -1424,7 +1475,14 @@
       ! Compute coefficients
       c1intp =  abs((t2 - tt) / (t2 - t1))
       c2intp =  c1 - c1intp
+      debug=.false.
+      if (debug) then
 
+         if ( inig.EQ.ini.AND.injg.EQ.inj ) then
+            write(*,*) 't1,t2,tt,c1intp,c2intp', t1,t2,tt, c1intp,c2intp
+            write(*,*) "mitya, inside interp",  this_block%i_glob(ihi), this_block%j_glob(jhi) 
+         endif
+      endif
       end subroutine interp_coeff
 
 !=======================================================================
@@ -3261,7 +3319,13 @@
 
       logical (kind=log_kind) :: readm, read6, read12,dbug
 
+!jd      real (kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: &
+!jd            topmelt, & ! temporary fields
+!jd            botmelt, &
+!jd            sublim
+
       real (kind=dbl_kind) :: &
+          secday,             &
           sec6hr,             &! number of seconds in 6 hours
           sec12hr,            &! number of seconds in 12 hours
           precip_factor       ! Help
@@ -3275,18 +3339,10 @@
       type (block) :: &
          this_block           ! block information for current block
 
-      real (kind=dbl_kind) :: &
-            Lsub, secday, Tffresh, puny
-
-      call icepack_query_parameters(Lsub_out=Lsub)
-      call icepack_query_parameters(secday_out=secday)
-      call icepack_query_parameters(Tffresh_out=Tffresh, puny_out=puny)
-
       dbug=.false.
-
       if (istep1 > check_step) dbug = .true.  !! debugging
 
-
+      call icepack_query_parameters(secday_out=secday)
 #define monthly
 #undef monthly
 #ifdef monthly
@@ -3384,6 +3440,10 @@
       call interpolate_data (Qa_data,   Qa)
 
 #endif
+
+#define semidaily
+#undef semidaily
+#ifdef semidaily
     !-------------------------------------------------------------------
     ! 12-hourly data
     !
@@ -3406,7 +3466,6 @@
 ! current record number
 !jd First record in flux file is at 12 UTC 1/1, and valid for the preciding 12-hrs. 
       recnum = 1 + 2*(int(yday)-1) + int(real(sec,kind=dbl_kind)/sec12hr)
-
       ! Read
       read12 = .false.
       if (oldrecnum12 .ne. recnum) read12 = .true.
@@ -3457,7 +3516,7 @@
          end do
 
       end if
-
+#endif
     !-------------------------------------------------------------------
     ! 6-hourly data
     ! 
@@ -3508,7 +3567,13 @@
       ! -----------------------------------------------------------
       ! read atmospheric forcing 
       ! -----------------------------------------------------------
-
+#define SixHourlyRain
+#ifdef SixHourlyRain
+      fieldname='rain'
+      call read_data_nc (read6, 0, fyear, ixm, ixx, ixp, &
+                   maxrec, rain_file, fieldname, fsnow_data, &
+                   field_loc_center, field_type_vector)
+#endif
       fieldname='Uwind'
       call read_data_nc (read6, 0, fyear, ixm, ixx, ixp, &
                    maxrec, uwind_file, fieldname, uatm_data, &
@@ -3535,6 +3600,24 @@
                    field_loc_center, field_type_scalar)
 
       ! Interpolate to current time step
+#ifdef SixHourlyRain
+      call interpolate_data (fsnow_data,fsnow) 
+      ! convert precipitation units to kg/m^2 s
+      if (trim(precip_units) == 'mm_per_month') then
+            precip_factor = c12/(secday*days_per_year)
+      elseif (trim(precip_units) == 'mm_per_day') then
+            precip_factor = c1/secday
+      elseif (trim(precip_units) == 'm_per_12hr') then
+            precip_factor = c1/43.2_dbl_kind
+      elseif (trim(precip_units) == 'mm_per_sec' .or. &
+              trim(precip_units) == 'mks') then
+            precip_factor = c1    ! mm/sec = kg/m^2 s
+      endif
+      !$OMP PARALLEL DO PRIVATE(iblk)
+      do iblk = 1, nblocks
+            fsnow(:,:,iblk)=fsnow(:,:,iblk)*precip_factor
+      end do
+#endif
       call interpolate_data (uatm_data, uatm)
       call interpolate_data (vatm_data, vatm)
       call interpolate_data (Tair_data, Tair)
@@ -6439,7 +6522,8 @@ subroutine boundary_files(yr)
       !if (my_task == master_task ) then
       !write (nu_diag,*) 'vicen_N_bry =',vicen_work_bry(nx_block,ny_block,2,1,1:max_blocks)
       !write (nu_diag,*) 'vicen_N =',vicen_bry(nx_block,ny_block,2,12)
-      !endif      call file_year_bry (data_file, fyear) ! Ensure correct year-file
+      !endif      
+      call file_year_bry (data_file, fyear) ! Ensure correct year-file
  
       fieldname1='vsnon_N_bry'
       fieldname2='vsnon_S_bry'
@@ -6678,11 +6762,12 @@ subroutine boundary_files(yr)
 
 !
 ! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+! Modified:14 April 2019 from old code where this was last modified in 8 May 2019 
 
-      
+
+      use ice_constants, only: c0
       use ice_diagnostics, only: check_step
-      
+      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
 
       logical (kind=log_kind), intent(in) :: flag
 
@@ -6782,14 +6867,14 @@ subroutine boundary_files(yr)
             if (ixx==maxrec) then
                if (yr < fyear_final) then ! get data from following year
                   call ice_close_nc(fid)
-                  call file_year (data_file, yr+1)
+                  call file_year_bry (data_file, yr+1)
                   call ice_open_nc (data_file, fid)
                else             ! yr = fyear_final, no more data exists
                   if (maxrec > 12) then ! extrapolate from ixx
                      n4 = ixx
                   else          ! go to beginning of fyear_init
                      call ice_close_nc(fid)
-                     call file_year (data_file, fyear_init)
+                     call file_year_bry (data_file, fyear_init)
                      call ice_open_nc (data_file, fid)
 
                   endif
@@ -6837,11 +6922,12 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 ! let the ixp value equal the last value of the year.
 !
 ! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+! Modified:14 April 2019 from old code where this was last modified in 8 May 2019 
 
       
+      use ice_constants, only: c0
       use ice_diagnostics, only: check_step
-      
+      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
 
       logical (kind=log_kind), intent(in) :: flag
 
@@ -6940,14 +7026,14 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
             if (ixx==maxrec) then
                if (yr < fyear_final) then ! get data from following year
                   call ice_close_nc(fid)
-                  call file_year (data_file, yr+1)
+                  call file_year_bry (data_file, yr+1)
                   call ice_open_nc (data_file, fid)
                else             ! yr = fyear_final, no more data exists
                   if (maxrec > 12) then ! extrapolate from ixx
                      n4 = ixx
                   else          ! go to beginning of fyear_init
                      call ice_close_nc(fid)
-                     call file_year (data_file, fyear_init)
+                     call file_year_bry (data_file, fyear_init)
                      call ice_open_nc (data_file, fid)
 
                   endif
@@ -6996,11 +7082,12 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 
 !
 ! Adapted by Pedro Duarte (NPI) Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+! Modified:14 April 2019 from old code where this was last modified in 8 May 2019  
 
       
+      use ice_constants, only: c0
       use ice_diagnostics, only: check_step
-     
+      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
 
       logical (kind=log_kind), intent(in) :: flag
 
@@ -7100,14 +7187,14 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
             if (ixx==maxrec) then
                if (yr < fyear_final) then ! get data from following year
                   call ice_close_nc(fid)
-                  call file_year (data_file, yr+1)
+                  call file_year_bry (data_file, yr+1)
                   call ice_open_nc (data_file, fid)
                else             ! yr = fyear_final, no more data exists
                   if (maxrec > 12) then ! extrapolate from ixx
                      n4 = ixx
                   else          ! go to beginning of fyear_init
                      call ice_close_nc(fid)
-                     call file_year (data_file, fyear_init)
+                     call file_year_bry (data_file, fyear_init)
                      call ice_open_nc (data_file, fid)
 
                   endif
@@ -7142,7 +7229,8 @@ subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
 #endif
       end subroutine read_bry_ice_data_nc_4D
 !=======================================================================
-subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+
+ subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
                             maxrec, data_file, fieldname1, &
                             fieldname2,fieldname3,fieldname4,&
                             field_data, field_loc, field_type)
@@ -7155,7 +7243,7 @@ subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
 
 !
 ! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2018 
+! Modified:14 April 2019 from old code where this was last modified in 8 May 2019 
 
       use ice_constants, only: c0
       use ice_diagnostics, only: check_step
