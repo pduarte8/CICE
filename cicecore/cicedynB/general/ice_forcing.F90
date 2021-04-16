@@ -1430,20 +1430,14 @@
       debug = .false.
       if (debug) then
          iblk=1
-         this_block =get_block(blocks_ice(iblk),iblk)                                                                                                                                                         
+         this_block=get_block(blocks_ice(iblk),iblk)
+                                                                                                                                                        
          ilo = this_block%ilo
          ihi = this_block%ihi
          jlo = this_block%jlo
          jhi = this_block%jhi
-         ini = 1802
-         inj = 1352
          inig = this_block%i_glob(ihi)
-         injg = this_block%j_glob(jhi)
-      
-         if ( inig.EQ.ini.AND.injg.EQ.inj ) then
-            write(*,*) 'mitya, rsec, secyr, fyear,month, mday,nyr,Mysecs1,MySecs2,MySecs', &
-                 rsec,secyr, fyear, month, mday, nyr,MySecs1,MySecs2,MySecs
-         endif
+         injg = this_block%j_glob(jhi)  
       endif
       rsec = real(sec)
       MySecs = MySecs + rsec                  !Here seconds "used" in current day are added
@@ -1475,14 +1469,7 @@
       ! Compute coefficients
       c1intp =  abs((t2 - tt) / (t2 - t1))
       c2intp =  c1 - c1intp
-      debug=.false.
-      if (debug) then
-
-         if ( inig.EQ.ini.AND.injg.EQ.inj ) then
-            write(*,*) 't1,t2,tt,c1intp,c2intp', t1,t2,tt, c1intp,c2intp
-            write(*,*) "mitya, inside interp",  this_block%i_glob(ihi), this_block%j_glob(jhi) 
-         endif
-      endif
+      
       end subroutine interp_coeff
 
 !=======================================================================
@@ -6483,7 +6470,8 @@ subroutine boundary_files(yr)
       fieldname3='aicen_W_bry'
       fieldname4='aicen_E_bry'
       iblk=1
-      this_block = get_block(blocks_ice(iblk),iblk)                                                                                                                                                        
+      this_block = get_block(blocks_ice(iblk),iblk)
+                                                                                                                                                        
       ilo = this_block%ilo
       ihi = this_block%ihi
       jlo = this_block%jlo
