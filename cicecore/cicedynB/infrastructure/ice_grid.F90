@@ -18,7 +18,7 @@
       use ice_broadcast, only: broadcast_scalar, broadcast_array
       use ice_boundary, only: ice_HaloUpdate, ice_HaloExtrapolate
       use ice_communicate, only: my_task, master_task
-      use ice_blocks, only: block, get_block, nx_block, ny_block, nghost
+      use ice_blocks, only: block, get_block, nx_block, ny_block, nghost, nblocks_y, nblocks_x
       use ice_domain_size, only: nx_global, ny_global, max_blocks
       use ice_domain, only: blocks_ice, nblocks, halo_info, distrb_info, &
           ew_boundary_type, ns_boundary_type, init_domain_distribution
@@ -1600,6 +1600,32 @@
             bm(i,j,iblk) = my_task + iblk/100.0_dbl_kind
          enddo
          enddo
+         if ((this_block%jblock == nblocks_y).and.(this_block%iblock < nblocks_x)) then  ! north edge mitya
+            do i = ilo, ihi !mitya                
+               uvm(i,jhi,iblk) = min (hm(i,jhi,  iblk), hm(i,jhi-1,  iblk), &
+                                 hm(i+1,jhi,iblk), hm(i+1,jhi-1,iblk))
+            enddo
+           
+         endif
+         if ((this_block%iblock == nblocks_x).and.(this_block%jblock < nblocks_y)) then  ! east edge mitya
+            do j = jlo, jhi !mitya  
+               uvm(ihi,j,iblk) =  min (hm(ihi,j,  iblk), hm(ihi-1,j,  iblk), &
+                                 hm(ihi,j+1,iblk), hm(ihi-1,j+1,iblk))
+            enddo
+           
+         endif
+         if ((this_block%iblock == nblocks_x).and.(this_block%jblock == nblocks_y)) then  ! north east edge mitya
+            do j = jlo, jhi !mitya  
+               uvm(ihi,j,iblk) =  min (hm(ihi,j,  iblk), hm(ihi-1,j,  iblk), &
+                                 hm(ihi,j-1,iblk), hm(ihi-1,j-1,iblk))
+            enddo
+            do i = ilo, ihi !mitya                
+               uvm(i,jhi,iblk) = min (hm(i,jhi,  iblk), hm(i,jhi-1,  iblk), &
+                                 hm(i-1,jhi,iblk), hm(i-1,jhi-1,iblk))
+            enddo
+           
+         endif
+
       enddo
       !$OMP END PARALLEL DO
 
