@@ -65,17 +65,30 @@
          nu_rst_pointer, &  ! pointer to latest restart file
          nu_history    , &  ! binary history output file
          nu_hdr        , &  ! header file for binary history output
-         nu_Limiting_factors_out ! added by Pedro Duarte (NPI) for limiting factor file (only columnar applications)
+         nu_Limiting_factors_out, & ! added by Pedro Duarte (NPI) for limiting factor file (only columnar applications)
+
+#ifdef ROMSCOUPLED
+         nu_dump_accum , &  ! dump file for accumulated fluxes
+         nu_restart_accum ! restart file for accumulated fluxes
+#endif
          
 
       character (32), public :: &
          nml_filename = 'ice_in' ! namelist input file name
 
       integer (kind=int_kind), parameter, public :: &
+#ifndef ROMSCOUPLED
          ice_stdin  =  5, & ! reserved unit for standard input
          ice_stdout =  6, & ! reserved unit for standard output
          ice_stderr =  6    ! reserved unit for standard error
+#else
+         ice_stdin  =  95, & ! reserved unit for standard input
+         ice_stdout =  96, & ! reserved unit for standard output
+         ice_stderr =  97    ! reserved unit for standard error
 
+      character (11), parameter, public :: &
+         stdout_file = 'cice_stdout'
+#endif
       integer (kind=int_kind), public :: &
          nu_diag = ice_stdout  ! diagnostics output file, unit number may be overwritten
 
@@ -109,14 +122,23 @@
          character(len=*),parameter :: subname='(init_fileunits)'
 
          allocate(ice_IOUnitsInUse(ice_IOUnitsMaxUnit))
+#ifdef ROMSCOUPLED
+         nu_diag = 98 ! ice_stdout  ! default
+#endif
          ice_IOUnitsInUse = .false.
 
-         ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5
-         ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 6
+         ice_IOUnitsInUse(ice_stdin)  = .true. ! reserve unit 5/95
+         ice_IOUnitsInUse(ice_stdout) = .true. ! reserve unit 6/96
          ice_IOUnitsInUse(ice_stderr) = .true.
          if (nu_diag >= 1 .and. nu_diag <= ice_IOUnitsMaxUnit) &
             ice_IOUnitsInUse(nu_diag) = .true. ! reserve unit nu_diag
-
+#ifdef ROMSCOUPLED
+         open(UNIT=nu_diag,FILE='cice_nu_diag')
+         open(UNIT=ice_stdout,FILE=stdout_file)
+         if (ice_stdout.ne.ice_stderr) then
+            open(UNIT=ice_stderr,FILE='cice_stderr')
+         endif
+#endif
          call get_fileunit(nu_grid)
          call get_fileunit(nu_kmt)
          call get_fileunit(nu_forcing)
@@ -144,6 +166,11 @@
          call get_fileunit(nu_history)
          call get_fileunit(nu_hdr)
          call get_fileunit(nu_Limiting_factors_out)
+#ifdef ROMSCOUPLED
+         !seb
+         call get_fileunit(nu_dump_accum)
+         call get_fileunit(nu_restart_accum)
+#endif
 
       end subroutine init_fileunits
 
@@ -234,7 +261,10 @@
          call release_fileunit(nu_Limiting_factors_out)
 
          if (nu_diag /= ice_stdout) call release_fileunit(nu_diag)
-
+#ifdef ROMSCOUPLED
+         call release_fileunit(nu_dump_accum)
+         call release_fileunit(nu_restart_accum)
+#endif
          inquire(unit=98, opened=itsopen) 
          if ( itsopen ) then          
              close(98)

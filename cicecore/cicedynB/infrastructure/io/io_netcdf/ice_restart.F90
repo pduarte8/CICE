@@ -40,7 +40,9 @@
       use ice_calendar, only: sec, month, mday, nyr, istep0, istep1, &
                               time, time_forc, npt
       use ice_communicate, only: my_task, master_task
-
+#ifdef ROMSCOUPLED
+      use ice_accum_shared, only: bool_accum_read, accum_time
+#endif
       character(len=char_len_long), intent(in), optional :: ice_ic
 
       ! local variables
@@ -83,10 +85,20 @@
             status = nf90_get_att(ncid, nf90_global, 'sec', sec)
          endif
          endif ! use namelist values if use_restart_time = F
-
+#ifdef ROMSCOUPLED
+         ! seb: "hack"... :-\
+         status = 1 ! this is needed to get nf90_get_att to report an error. Very weird.
+         status = nf90_get_att(ncid,nf90_global,'accum_time',accum_time)
+         if (status /= nf90_noerr) then
+              bool_accum_read = .false.
+         endif
+#endif
          write(nu_diag,*) 'Restart read at istep=',istep0,time,time_forc
       endif
-
+#ifdef ROMSCOUPLED
+      call broadcast_scalar(bool_accum_read, master_task)
+      if(bool_accum_read) call broadcast_scalar(accum_time, master_task)
+#endif
       call broadcast_scalar(istep0,master_task)
       call broadcast_scalar(time,master_task)
       call broadcast_scalar(time_forc,master_task)
@@ -117,7 +129,9 @@
                                  n_dic, n_don, n_fed, n_fep, nfsd
       use ice_arrays_column, only: oceanmixed_ice
       use ice_dyn_shared, only: kdyn
-
+#ifdef ROMSCOUPLED
+      use ice_accum_shared, only: bool_accum_write, accum_time
+#endif
       character(len=char_len_long), intent(in), optional :: filename_spec
 
       ! local variables
@@ -204,7 +218,20 @@
          status = nf90_put_att(ncid,nf90_global,'month',month)
          status = nf90_put_att(ncid,nf90_global,'mday',mday)
          status = nf90_put_att(ncid,nf90_global,'sec',sec)
+#ifdef ROMSCOUPLED
+         ! seb: a bit of a hack this but it is also the least amount of
+         ! change I could come up with.
+         
+         if(bool_accum_write) then
+            print*, 'ojoj bool_write prepp'
+            write(nu_diag,*) 'init_restart_write - inside ROMSCOUPLED 1'
+            status = nf90_put_att(ncid,nf90_global,'accum_time',accum_time)
+            if (status /= nf90_noerr) then
+              write(nu_diag,*) 'init_restart_write - Error status'
+            endif 
 
+         endif
+#endif
          nx = nx_global
          ny = ny_global
          if (restart_ext) then
@@ -334,6 +361,18 @@
          endif  !nbtrcr
 
          if (solve_zsal) call define_rest_field(ncid,'sss',dims)
+
+#ifdef ROMSCOUPLED
+         if (bool_accum_write) then
+            call define_rest_field(ncid,'accum_aice',dims)
+            call define_rest_field(ncid,'accum_fresh',dims)
+            call define_rest_field(ncid,'accum_fsalt',dims)
+            call define_rest_field(ncid,'accum_fhocn',dims)
+            call define_rest_field(ncid,'accum_fswthru',dims)
+            call define_rest_field(ncid,'accum_strocnx',dims)
+            call define_rest_field(ncid,'accum_strocny',dims)
+         end if
+#endif
 
          deallocate(dims)
 

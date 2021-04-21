@@ -52,7 +52,7 @@
       timer_readwrite,        &! read/write
       timer_diags,            &! diagnostics/history
       timer_hist,             &! diagnostics/history
-#if (defined CESMCOUPLED)
+#if (defined CESMCOUPLED) || (defined ROMSCOUPLED)
       timer_cplrecv,          &! receive from coupler
       timer_rcvsnd,           &! time between receive to send
       timer_cplsend,          &! send to coupled
@@ -61,8 +61,8 @@
       timer_bound,            &! boundary updates
       timer_bgc,              &! biogeochemistry
       timer_evp_1d,           &! timer only loop
-      timer_evp_2d             ! timer including conversion 1d/2d
-!      timer_tmp               ! for temporary timings
+      timer_evp_2d,           &! imer including conversion 1d/2d
+      timer_tmp                 ! for temporary timings
 
 !-----------------------------------------------------------------------
 !
