@@ -1,0 +1,5 @@
+#!/bin/csh -f 
+
+qsub ./cice.run
+echo "`date` ${0}: caseA job submitted"  >> /cluster/home/pduarte/pduarte8/CICE/caseA/README.case
+

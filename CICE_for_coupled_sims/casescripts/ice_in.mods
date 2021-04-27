@@ -1,0 +1,35 @@
+# cice.setup settings
+
+nprocs            = 4
+nx_global         = 100
+ny_global         = 116
+block_size_x      = 25
+block_size_y      = 29
+max_blocks        = 4
+distribution_type = 'cartesian'
+processor_shape   = 'slenderX2'
+version_name      = 'CICE_6.1.0'
+
+# set_nml.gx3
+
+dt = 3600.0
+runtype = 'initial'
+ice_ic  = 'ICE_MACHINE_INPUTDATA/CICE_data/ic/gx3/iced_gx3_v5.nc'
+grid_format = 'bin'
+grid_type   = 'displaced_pole'
+grid_file   = 'ICE_MACHINE_INPUTDATA/CICE_data/grid/gx3/grid_gx3.bin'
+kmt_file    = 'ICE_MACHINE_INPUTDATA/CICE_data/grid/gx3/kmt_gx3.bin'
+bathymetry_file = 'ICE_MACHINE_INPUTDATA/CICE_data/grid/gx3/global_gx3.bathy.nc'
+fyear_init      = 1997
+atm_data_format = 'bin'
+atm_data_type   = 'ncar'
+atm_data_dir    = 'ICE_MACHINE_INPUTDATA/CICE_data/forcing/gx3/NCAR_bulk'
+ocn_data_format = 'bin'
+ocn_data_dir    = 'ICE_MACHINE_INPUTDATA/CICE_data/forcing/gx3/'
+
+
+
+# set_nml.diag24
+
+diagfreq       = 24
+

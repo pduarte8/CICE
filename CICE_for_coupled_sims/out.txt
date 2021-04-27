@@ -1,0 +1,117 @@
+/cluster/home/pduarte/pduarte8/CICE
+/cluster/home/pduarte/pduarte8/CICE/CICE_for_coupled_sims
+Linux.LANL_NPI.conejo
+/cluster/home/pduarte/pduarte8/CICE/CICE_for_coupled_sims/env.Linux.LANL_NPI.conejo
+/cluster/home/pduarte/pduarte8/CICE
+/cluster/home/pduarte/pduarte8/CICE/CICE_for_coupled_sims/env.Linux.LANL_NPI.conejo
+Test4
+ 
+./cice.build:
+Compiling makdep
+Compiled makdep
+ 
+ICE_GRID = rectangular
+ICE_NTASK = 2
+ICE_NTHRD = 2
+ICE_CPPDEFS =   -Dncdf
+Filepath = 
+/cluster/home/pduarte/pduarte8/CICE/cicecore/drivers/ROMS/cice/
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/dynamics
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/general
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/analysis
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/io/io_netcdf
+/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/comm/comm
+/cluster/home/pduarte/pduarte8/CICE/cicecore/shared
+/cluster/home/pduarte/pduarte8/Icepack/columnphysics
+ 
+building cice > /cluster/home/pduarte/pduarte8/CICE/CICE_RUNS/CICE_for_coupled_sims/compile/cice.bldlog.210420-114824
+gmake clean
+rm -f *.f *.f90 *.d *.mod *.o
+gmake cice
+Building dependency for icepack_zsalinity.d
+Building dependency for icepack_zbgc_shared.d
+Building dependency for icepack_zbgc.d
+Building dependency for icepack_wavefracspec.d
+Building dependency for icepack_warnings.d
+Building dependency for icepack_tracers.d
+Building dependency for icepack_therm_vertical.d
+Building dependency for icepack_therm_shared.d
+Building dependency for icepack_therm_mushy.d
+Building dependency for icepack_therm_itd.d
+Building dependency for icepack_therm_bl99.d
+Building dependency for icepack_therm_0layer.d
+Building dependency for icepack_shortwave.d
+Building dependency for icepack_ocean.d
+Building dependency for icepack_orbital.d
+Building dependency for icepack_parameters.d
+Building dependency for icepack_mushy_physics.d
+Building dependency for icepack_meltpond_topo.d
+Building dependency for icepack_meltpond_lvl.d
+Building dependency for icepack_meltpond_cesm.d
+Building dependency for icepack_kinds.d
+Building dependency for icepack_mechred.d
+Building dependency for icepack_itd.d
+Building dependency for icepack_isotope.d
+Building dependency for icepack_intfc.d
+Building dependency for icepack_fsd.d
+Building dependency for icepack_flux.d
+Building dependency for icepack_firstyear.d
+Building dependency for icepack_brine.d
+Building dependency for icepack_atmo.d
+Building dependency for icepack_algae.d
+Building dependency for icepack_age.d
+Building dependency for icepack_aerosol.d
+Building dependency for ice_transport_remap.d
+Building dependency for ice_transport_driver.d
+Building dependency for ice_step_mod.d
+Building dependency for ice_state.d
+Building dependency for ice_spacecurve.d
+Building dependency for ice_shr_reprosum86.d
+Building dependency for ice_restoring.d
+Building dependency for ice_restart_shared.d
+Building dependency for ice_restart_driver.d
+Building dependency for ice_restart_column.d
+Building dependency for ice_restart.d
+Building dependency for ice_read_write.d
+Building dependency for ice_kinds_mod.d
+Building dependency for ice_init_column.d
+Building dependency for ice_init.d
+Building dependency for ice_history_write.d
+Building dependency for ice_history_shared.d
+Building dependency for ice_history_pond.d
+Building dependency for ice_history_mechred.d
+Building dependency for ice_history_drag.d
+Building dependency for ice_history_fsd.d
+Building dependency for ice_history_bgc.d
+Building dependency for ice_history.d
+Building dependency for ice_grid.d
+Building dependency for ice_forcing_bgc.d
+Building dependency for ice_forcing.d
+Building dependency for ice_flux_bgc.d
+Building dependency for ice_flux.d
+Building dependency for ice_fileunits.d
+Building dependency for ice_exit.d
+Building dependency for ice_dyn_shared.d
+Building dependency for ice_dyn_evp_1d.d
+Building dependency for ice_dyn_evp.d
+Building dependency for ice_dyn_eap.d
+Building dependency for ice_domain_size.d
+Building dependency for ice_domain.d
+Building dependency for ice_distribution.d
+Building dependency for ice_diagnostics_bgc.d
+Building dependency for ice_diagnostics.d
+Building dependency for ice_calendar.d
+Building dependency for ice_constants.d
+Building dependency for ice_blocks.d
+Building dependency for ice_arrays_column.d
+Building dependency for ice_accum_shared.d
+Building dependency for ice_accum_fields.d
+Building dependency for CICE_RunMod.d
+Building dependency for CICE_MCT.d
+Building dependency for CICE_InitMod.d
+Building dependency for CICE_FinalMod.d
+Building dependency for CICE.d
+fpp  -DFORTRANUNDERSCORE   -Dncdf -DROMSCOUPLED -DNXGLOB= -DNYGLOB= -DBLCKX= -DBLCKY= -DMXBLCKS= -DNICELYR= -DNSNWLYR= -DNICECAT= -DTRAGE= -DTRFY= -DTRLVL= -DTRPND= -DTRBRI= -DNTRAERO= -DTRZS= -DNBGCLYR= -DTRALG= -DTRBGCZ= -DTRDOC= -DTRDOC= -DTRDIC= -DTRDON= -DTRFED= -DTRFEP= -DTRZAERO= -DTRBGCS= -DNUMIN= -DNUMAX= -DROMSCOUPLED -I. -I/cluster/home/pduarte/pduarte8/CICE/cicecore/drivers/ROMS/cice/ -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/dynamics -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/general -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/analysis -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/io/io_netcdf -I/cluster/home/pduarte/pduarte8/CICE/cicecore/shared -I/cluster/home/pduarte/pduarte8/Icepack/columnphysics  -I/cluster/software/netCDF-Fortran/4.4.5-iimpi-2019a -I/cluster/home/puarte/pduarte8/CICE/cicecore/cicedynB/infrastructure /cluster/home/pduarte/pduarte8/Icepack/columnphysics/icepack_kinds.F90 > icepack_kinds.f90
+icc -c -O2 -fp-model precise   -xHost -DFORTRANUNDERSCORE   -Dncdf -DROMSCOUPLED -DNXGLOB= -DNYGLOB= -DBLCKX= -DBLCKY= -DMXBLCKS= -DNICELYR= -DNSNWLYR= -DNICECAT= -DTRAGE= -DTRFY= -DTRLVL= -DTRPND= -DTRBRI= -DNTRAERO= -DTRZS= -DNBGCLYR= -DTRALG= -DTRBGCZ= -DTRDOC= -DTRDOC= -DTRDIC= -DTRDON= -DTRFED= -DTRFEP= -DTRZAERO= -DTRBGCS= -DNUMIN= -DNUMAX= -DROMSCOUPLED -I. -I/cluster/home/pduarte/pduarte8/CICE/cicecore/drivers/ROMS/cice/ -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/dynamics -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/general -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/analysis -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/io/io_netcdf -I/cluster/home/pduarte/pduarte8/CICE/cicecore/shared -I/cluster/home/pduarte/pduarte8/Icepack/columnphysics  -I/cluster/software/netCDF-Fortran/4.4.5-iimpi-2019a -I/cluster/home/puarte/pduarte8/CICE/cicecore/cicedynB/infrastructure /cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/ice_shr_reprosum86.c
+ifort -c -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -fp-model precise -mcmodel=large  -I. -I/cluster/home/pduarte/pduarte8/CICE/cicecore/drivers/ROMS/cice/ -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/dynamics -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/general -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/analysis -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/io/io_netcdf -I/cluster/home/pduarte/pduarte8/CICE/cicecore/shared -I/cluster/home/pduarte/pduarte8/Icepack/columnphysics  -I/cluster/software/netCDF-Fortran/4.4.5-iimpi-2019a -I/cluster/home/puarte/pduarte8/CICE/cicecore/cicedynB/infrastructure icepack_kinds.f90  

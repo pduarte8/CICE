@@ -21,8 +21,8 @@
            RANLIB := ranlib
              PERL := perl
              TEST := test
-MCT_INCDIR ?= /cluster/work/users/mitya/tmproms/MCT/include
-MCT_LIBDIR ?= /cluster/work/users/mitya/tmproms/MCT/lib
+#MCT_INCDIR ?= /cluster/work/users/mitya/tmproms/MCT/include
+#MCT_LIBDIR ?= /cluster/work/users/mitya/tmproms/MCT/lib
 
 INCLDIR    := -I. -I/usr/include -I$(MCT_INCDIR) -I/cluster/home/mitya/models/Icepack
 SLIBS      := -L/usr/lib -L$(MCT_LIBDIR) -lmct -lmpeu

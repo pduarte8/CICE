@@ -1,0 +1,47 @@
+#! /bin/csh -f
+
+setenv ICE_CASENAME  CICE_for_coupled_sims 
+setenv ICE_SANDBOX  ~/models/CICE  
+setenv ICE_MACHINE  Linux  
+setenv ICE_COMPILER  intel  
+setenv ICE_MACHCOMP  Linux.LANL_NPI.conejo  
+setenv ICE_SCRIPTS  ~/models/CICE/configuration/scripts  
+setenv ICE_CASEDIR  ~/models/CICE/${ICE_CASENAME} 
+setenv ICE_RUNDIR   /cluster/shared/arcticfjord/CICE_and_Icepack/CICE/CICE_RUNS/${ICE_CASENAME} 
+setenv ICE_OBJDIR     ${ICE_RUNDIR}/compile
+setenv ICE_RSTDIR     ${ICE_RUNDIR}/restart
+setenv ICE_HSTDIR     ${ICE_RUNDIR}/history
+setenv ICE_LOGDIR     ${ICE_CASEDIR}/logs
+setenv ICE_DRVOPT     ROMS/cice/
+setenv ICE_IOTYPE     netcdf    # set to none if netcdf library is unavailable
+setenv ICE_CLEANBUILD true
+setenv ICE_QUIETMODE  false  
+setenv ICE_GRID  rectangular  
+setenv ICE_NTASKS  2  
+setenv ICE_NTHRDS  2  
+setenv ICE_TEST  UnDeFiNeD  
+setenv ICE_TESTNAME  UnDeFiNeD  
+setenv ICE_TESTID  UnDeFiNeD  
+setenv ICE_BASELINE  ~/models/CICE/CICE_BASELINE  
+setenv ICE_BASEGEN  UnDeFiNeD  
+setenv ICE_BASECOM  UnDeFiNeD  
+setenv ICE_BFBCOMP  UnDeFiNeD  
+setenv ICE_SPVAL  UnDeFiNeD  
+setenv ICE_RUNLENGTH  -1
+setenv ICE_ACCOUNT  P00000000  
+setenv ICE_QUEUE  regular  
+setenv MCT_INCDIR /cluster/work/users/mitya/tmproms/MCT/include
+setenv MCT_LIBDIR /cluster/work/users/mitya/tmproms/MCT/lib
+
+
+
+#======================================================
+
+setenv ICE_THREADED   false
+if (${ICE_NTHRDS} > 1) setenv ICE_THREADED  true
+setenv ICE_COMMDIR mpi
+if (${ICE_NTASKS} == 1) setenv ICE_COMMDIR serial
+#if (${ICE_NTASKS} > 1) setenv ICE_COMMDIR comm
+### Specialty code
+setenv ICE_BLDDEBUG  false  # build debug flags
+

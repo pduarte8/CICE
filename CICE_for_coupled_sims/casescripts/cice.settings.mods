@@ -1,0 +1,29 @@
+# cice.setup settings
+
+setenv ICE_SANDBOX  /cluster/home/pduarte/pduarte8/CICE
+setenv ICE_SCRIPTS  /cluster/home/pduarte/pduarte8/CICE/configuration/scripts
+setenv ICE_CASENAME caseA
+setenv ICE_CASEDIR  /cluster/home/pduarte/pduarte8/CICE/caseA
+setenv ICE_MACHINE  cheyenne
+setenv ICE_COMPILER intel
+setenv ICE_MACHCOMP cheyenne_intel
+setenv ICE_RUNDIR   /glade/scratch/pduarte/CICE_RUNS/caseA
+setenv ICE_GRID     gx3
+#setenv ICE_NXGLOB   100  # moved to namelist
+#setenv ICE_NYGLOB   116  # moved to namelist
+setenv ICE_NTASKS   4
+setenv ICE_NTHRDS   1
+#setenv ICE_MXBLCKS  4  # moved to namelist
+#setenv ICE_BLCKX    25  # moved to namelist
+#setenv ICE_BLCKY    29  # moved to namelist
+setenv ICE_BASELINE /glade/scratch/pduarte/CICE_BASELINE
+setenv ICE_BASEGEN  UnDeFiNeD
+setenv ICE_BASECOM  UnDeFiNeD
+setenv ICE_SPVAL    UnDeFiNeD
+setenv ICE_QUIETMODE  false
+setenv ICE_TEST     UnDeFiNeD
+setenv ICE_TESTNAME UnDeFiNeD
+setenv ICE_TESTID   UnDeFiNeD
+setenv ICE_BFBCOMP  UnDeFiNeD
+setenv ICE_ACCOUNT  P00000000
+setenv ICE_QUEUE    regular
