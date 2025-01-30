@@ -37,6 +37,7 @@
       use icepack_intfc, only: icepack_init_bgc, icepack_init_zsalinity
       use icepack_intfc, only: icepack_init_ocean_bio, icepack_load_ocean_bio_array
       use icepack_intfc, only: icepack_init_hbrine
+      use icepack_parameters, only: icepack_write_parameters !Giulia
 
       implicit none
 
@@ -117,7 +118,8 @@
           zaerotype_dust3    , zaerotype_dust4    , ratio_C2N_diatoms  ,  &
           ratio_C2N_sp       , ratio_C2N_phaeo    , ratio_chl2N_diatoms,  &
           ratio_chl2N_sp     , ratio_chl2N_phaeo  , F_abs_chl_diatoms  ,  &
-          F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins
+          F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins ,  &
+          h_iceruf
 
 !=======================================================================
 
@@ -1060,7 +1062,7 @@
         ratio_C2N_sp       , ratio_C2N_phaeo    , ratio_chl2N_diatoms,  & 
         ratio_chl2N_sp     , ratio_chl2N_phaeo  , F_abs_chl_diatoms  ,  &
         F_abs_chl_sp       , F_abs_chl_phaeo    , ratio_C2N_proteins ,  &
-        Limiting_factors_file, Bottom_turb_mix ! Added by Pedro Duarte (NPI)
+        Limiting_factors_file, Bottom_turb_mix  , h_iceruf ! Added by Pedro Duarte (NPI)
 
       !-----------------------------------------------------------------
 
@@ -1231,6 +1233,7 @@
       ratio_C2N_proteins = 7.0_dbl_kind  ! ratio of C to N in proteins (mol/mol)       
       Limiting_factors_file = .false.
       Bottom_turb_mix = .false.
+      h_iceruf           = 0.6e-3_dbl_kind !ice roughness to claculate turbulent exchange of nutrients
       ! z salinity  parameters
       grid_oS         = c5            ! for bottom flux         
       l_skS           = 7.0_dbl_kind  ! characteristic diffusive scale (m)  
@@ -1428,7 +1431,9 @@
       call broadcast_scalar(F_abs_chl_phaeo    ,  master_task)
       call broadcast_scalar(ratio_C2N_proteins ,  master_task) 
       call broadcast_scalar(nu_Limiting_factors_out,master_task)
-      call broadcast_scalar(Bottom_turb_mix    ,  master_task)
+      call broadcast_scalar(Bottom_turb_mix    ,  master_task) 
+      call broadcast_scalar(h_iceruf           ,  master_task)
+      
       !-----------------------------------------------------------------
       ! zsalinity and brine
       !-----------------------------------------------------------------
@@ -1829,6 +1834,7 @@
 
       character(len=*), parameter :: subname='(count_tracers)'
 
+     ! call icepack_write_parameters(nu_diag) !Giulia
       !-----------------------------------------------------------------
 
       call icepack_query_parameters( &
@@ -2604,11 +2610,14 @@
          mu_max_in=mu_max, R_Si2N_in=R_Si2N, R_C2N_DON_in=R_C2N_DON, chlabs_in=chlabs, &
          alpha2max_low_in=alpha2max_low, beta2max_in=beta2max, grow_Tdep_in=grow_Tdep, &
          fr_graze_in=fr_graze, mort_pre_in=mort_pre, f_doc_in=f_doc,fsal_in=fsal, &
-         nu_Limiting_factors_out_in=nu_Limiting_factors_out, Bottom_turb_mix_in = Bottom_turb_mix)
+         nu_Limiting_factors_out_in=nu_Limiting_factors_out, Bottom_turb_mix_in = Bottom_turb_mix, &
+         h_iceruf_in=h_iceruf)
 
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
           file=__FILE__, line=__LINE__)
+
+      call icepack_write_parameters(nu_diag) !Giulia
 
       !-----------------------------------------------------------------
       ! assign tracer dependencies
