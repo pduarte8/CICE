@@ -352,6 +352,8 @@
          call ISPOL_files
       elseif (trim(atm_data_type) == 'NICE_atm_data') then 
          call NICE_atm_files
+      elseif (trim(atm_data_type) == 'MOSAiC') then     !Giulia
+         call ISPOL_files                               !Giulia
       elseif (trim(atm_data_type) == 'box2001') then
          call box2001_data
       elseif (trim(atm_data_type) == 'hycom') then
@@ -562,6 +564,10 @@
          call ocn_data_NICE_init
       endif
 
+      if (trim(ocn_data_type) == 'MOSAiC') then !Giulia
+         call ocn_data_NICE_init              !Giulia
+      endif                                     !Giulia
+
       end subroutine init_forcing_ocn
 
 !=======================================================================
@@ -670,6 +676,8 @@
          call ISPOL_data
       elseif (trim(atm_data_type) == 'NICE_atm_data') then 
          call ISPOL_data
+      elseif (trim(atm_data_type) == 'MOSAiC') then !Giulia
+         call ISPOL_data                           !Giulia
       else    ! default values set in init_flux
          return
       endif
@@ -756,6 +764,11 @@
 !************************************************************************
 !   Added by Pedro Duarte (NPI) to deal with daily ocean for cing data             
       elseif (trim(ocn_data_type) == 'NICE') then
+         call ocn_data_NICE(dt)  
+!************************************************************************
+!************************************************************************
+!   Added by Giulia Castellani (NPI) to deal with daily ocean for cing data             
+      elseif (trim(ocn_data_type) == 'MOSAiC') then
          call ocn_data_NICE(dt)  
 !************************************************************************
       elseif (trim(ocn_data_type) == 'hycom') then
@@ -1721,7 +1734,8 @@
          enddo
       !Pedro Duarte (NPI) changes start
       elseif ((trim(atm_data_type) == 'ISPOL').OR.&
-             (trim(atm_data_type) == 'Resolute')) then  ! rectangular grid 
+             (trim(atm_data_type) == 'Resolute').OR.&
+             (trim(atm_data_type) == 'MOSAiC')) then  ! rectangular grid !Giulia
          zlvl0 = c10
       !Pedro Duarte (NPI) changes end
       endif                     ! atm_data_type
@@ -5296,6 +5310,11 @@
       humid_file = &
            trim(atm_data_dir)//'/Qa_2m_daily.nc'
 
+     if (trim(atm_data_type) == 'Resolute') then
+      cloud_file = &
+           trim(atm_data_dir)//'/cloudiness_daily.nc'
+      endif
+
       if (my_task == master_task) then
          write (nu_diag,*) ' '
          write (nu_diag,*) 'Atmospheric data files:'
@@ -5306,7 +5325,10 @@
          write (nu_diag,*) trim(vwind_file)
          write (nu_diag,*) trim(tair_file)
          write (nu_diag,*) trim(humid_file)
-      endif                     ! master_task
+         if (trim(atm_data_type) == 'Resolute') then
+         write (nu_diag,*) trim(cloud_file)
+         endif
+       endif                     ! master_task
 
       end subroutine ISPOL_files
 
@@ -5469,7 +5491,7 @@
                                                 
         met_file = tair_file 
         fieldname='Tair' 
-        !write(*,*) 'Tair',fyear,ixm,ixx,ixp,maxrec,met_file,fieldname,field_loc_center,field_type_scalar
+        write(*,*) 'Tair',fyear,ixm,ixx,ixp,maxrec,met_file,fieldname,field_loc_center,field_type_scalar
    
         call read_data_nc_point(read1, 0, fyear, ixm, ixx, ixp, &
                     maxrec, met_file, fieldname, Tair_data_p, &
@@ -5478,10 +5500,10 @@
         Tair(:,:,:) =  c1intp * Tair_data_p(1) &
                        + c2intp * Tair_data_p(2) &
                      - lapse_rate*8.0_dbl_kind
-        !write(*,*) 'read1=',read1,' c1intp=',c1intp,' c2intp=',c2intp,' lapse_rate=',lapse_rate
-        !write(*,*) 'Tair_data_p(1)=',Tair_data_p(1)
-        !write(*,*) 'Tair_data_p(2)=',Tair_data_p(2) 
-        !write(*,*) 'Tair=',Tair 
+        write(*,*) 'read1=',read1,' c1intp=',c1intp,' c2intp=',c2intp,' lapse_rate=',lapse_rate
+        write(*,*) 'Tair_data_p(1)=',Tair_data_p(1)
+        write(*,*) 'Tair_data_p(2)=',Tair_data_p(2) 
+        write(*,*) 'Tair=',Tair 
         met_file = humid_file 
         fieldname='Qa'
 
@@ -5493,6 +5515,11 @@
                           + c2intp * Qa_data_p(2) 
         Qa(:,:,:) = Qa_pnt
 
+        !write(*,*) 'Qa_data_p(1)=',Qa_data_p(1)
+        !write(*,*) 'Qa_data_p(2)=',Qa_data_p(2)
+        write(*,*) 'Qa=',Qa
+
+        met_file = humid_file
         met_file = uwind_file
         fieldname='uatm'
 
@@ -5522,6 +5549,13 @@
 
         fsnow(:,:,:) =  (c1intp * fsnow_data_p(1) + &
                          c2intp * fsnow_data_p(2)) 
+
+        !write(*,*) 'fsonw_data_p(1)=',fsnow_data_p(1)
+        !write(*,*) 'fsnow_data_p(2)=',fsnow_data_p(2)
+        write(*,*) 'fsnow=',fsnow
+
+
+
         if (trim(atm_data_type) == 'Resolute') then
 
            met_file = cloud_file
@@ -5601,6 +5635,11 @@
            fsw(:,:,:) =  c1intp * fsw_data_p(1) &
                           + c2intp * fsw_data_p(2)
 
+        !write(*,*) 'fsw_data_p(1)=',fsw_data_p(1)
+        !write(*,*) 'fsw_data_p(2)=',fsw_data_p(2)
+        write(*,*) 'fsw=',fsw
+
+       
            met_file = flw_file
            fieldname='flw' 
 
@@ -5973,6 +6012,7 @@
           call ice_open_nc(sst_file, fid)
         endif ! master_task
 
+      if (trim(ocn_data_type) == 'NICE') then !Giulia
         ! Read in ocean forcing data for all 365 days
         do n=1,nfld
           do m=1,365                
@@ -5999,6 +6039,37 @@
           enddo               ! daily loop
         enddo               ! field loop
         !write(*,*) 'ocn_frc_d(:,:,:,n,m)=',ocn_frc_d(:,:,:,1,:) 
+! here starts part added by Giulia for MOSAiC data        
+       else if (trim(ocn_data_type) == 'MOSAiC') then
+         write(nu_diag,*) 'We are in the _init routine for MOSAiC'
+        ! Read in ocean forcing data for all 639 days
+        do n=1,nfld
+          do m=1,639                
+            ! Note: netCDF does single to double conversion if necessary
+            if (n >= 4 .and. n <= 7) then
+               call ice_read_nc(fid, m, vname(n), work, dbug, &
+                                field_loc_NEcorner, field_type_vector)           
+            else
+               call ice_read_nc(fid, m, vname(n), work, dbug, &
+                                field_loc_center, field_type_scalar)  
+              ! write(nu_diag,*) 'vname(n)=',vname(n),'work=',work, m          
+            endif
+            ocn_frc_d(:,:,:,n,m) = work
+            !write(*,*) 'nx_block=',nx_block,' ny_block=',ny_block,' max_blocks=',max_blocks
+            !do i=1,nx_block
+               !write(*,*) 'i=',i
+               !do j=1,ny_block
+                  !do k=1,max_blocks
+                     !ocn_frc_d(i,j,k,n,m) = work
+                  !enddo
+               !enddo
+            !enddo   
+            !write(*,*) 'ocn_frc_d(:,:,:,n,m)=',ocn_frc_d(:,:,:,n,m)
+          enddo               ! daily loop
+        enddo               ! field loop
+        !write(*,*) 'ocn_frc_d(:,:,:,n,m)=',ocn_frc_d(:,:,:,1,:) 
+! end stuff added by Giulia        
+       endif !Giulia
         if (my_task == master_task) status = nf90_close(fid)
 #endif
 
@@ -6081,8 +6152,13 @@
 
       dataloc = 2                          ! data located at end of interval
       sec1hr = secday                      ! seconds in day
-      maxrec = 365                         ! 
 
+      if (trim(ocn_data_type) == 'NICE') then !Giulia
+       maxrec = 365                         ! 
+      else if (trim(ocn_data_type) == 'MOSAiC') then !Giulia
+       maxrec = 365 ! 639 Giulia 
+       write(nu_diag,*) 'We are in MOSAiC' !Giulia
+      endif
       ! current record number
       recnum = int(yday)   
 
@@ -6185,9 +6261,9 @@
         !$OMP END PARALLEL DO
       endif
 
-      if (dbug) then
+!      if (dbug) then
          if (my_task == master_task)  &
-               write (nu_diag,*) 'ocn_data_ncar'
+               write (nu_diag,*) 'ocn_data_NICE_or_MOSAiC'
            vmin = global_minval(Tf,distrb_info,tmask)
            vmax = global_maxval(Tf,distrb_info,tmask)
            if (my_task.eq.master_task)  &
@@ -6224,7 +6300,7 @@
            vmax = global_maxval(qdp,distrb_info,tmask)
            if (my_task.eq.master_task)  &
                write (nu_diag,*) 'qdp',vmin,vmax
-      endif 
+ !     endif 
       
       end subroutine ocn_data_NICE
 !=======================================================================

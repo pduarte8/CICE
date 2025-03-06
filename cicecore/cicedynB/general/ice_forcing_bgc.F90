@@ -470,6 +470,96 @@
        bgcrecnum = recnum
       endif
 
+! Start of Giulia addition for MOSAiC data
+      if (trim(bgc_data_type) == 'MOSAiC') then
+
+         nit_file = trim(bgc_data_dir)//'Nutrients_MOSAiC_daily_all.nc'
+         sil_file = trim(bgc_data_dir)//'Nutrients_MOSAiC_daily_all.nc' 
+
+         if (my_task == master_task .and. istep == 1) then
+         if (tr_bgc_Sil) then
+            write (nu_diag,*) ' '
+            write (nu_diag,*) 'silicate data interpolated to timestep:'
+            write (nu_diag,*) trim(sil_file)
+         endif
+         if (tr_bgc_Nit) then
+            write (nu_diag,*) ' '
+            write (nu_diag,*) 'nitrate data interpolated to timestep:'
+            write (nu_diag,*) trim(nit_file)
+            if (restore_bgc) write (nu_diag,*) &
+              'bgc restoring timescale (days) =', trestore
+         endif
+         endif                     ! my_task, istep
+
+        dataloc = 2                          ! data located at end of interval
+        sec1hr = secday                      ! seconds in day
+        maxrec = 639                         ! 
+
+        ! current record number
+        recnum = int(yday)   
+
+        ! Compute record numbers for surrounding data (2 on each side)
+        ixm = mod(recnum+maxrec-2,maxrec) + 1
+        ixx = mod(recnum-1,       maxrec) + 1
+       
+        recslot = 2
+        ixp = -99
+        call interp_coeff (recnum, recslot, sec1hr, dataloc)
+
+        read1 = .false.
+        if (istep==1 .or. bgcrecnum .ne. recnum) read1 = .true.
+ 
+ 
+        if (tr_bgc_Sil) then
+          met_file = sil_file
+          fieldname= 'silicate' 
+          call read_data_nc_point(read1, 0, fyear, ixm, ixx, ixp, &
+                    maxrec, met_file, fieldname, sil_data_p, &
+                    field_loc_center, field_type_scalar)
+      
+          sil(:,:,:) = c1intp * sil_data_p(1) &
+                     + c2intp * sil_data_p(2)
+         endif
+
+         if (tr_bgc_Nit) then
+           met_file = nit_file
+           fieldname= 'nitrate' 
+           call read_data_nc_point(read1, 0, fyear, ixm, ixx, ixp, &
+                    maxrec, met_file, fieldname, nit_data_p, &
+                    field_loc_center, field_type_scalar)
+      
+           nit(:,:,:) = c1intp * nit_data_p(1) &
+                      + c2intp * nit_data_p(2)
+         endif
+         
+            !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block)
+            do iblk = 1, nblocks
+
+               this_block = get_block(blocks_ice(iblk),iblk)
+               ilo = this_block%ilo
+               ihi = this_block%ihi
+               jlo = this_block%jlo
+               jhi = this_block%jhi
+
+               do j = jlo, jhi
+               do i = ilo, ihi
+       
+                  ks = 2*icepack_max_algae + icepack_max_doc + 3 + icepack_max_dic
+                  ocean_bio_all(i,j,ks,iblk) = sil(i,j,iblk)                       !Sil  
+                  ks = icepack_max_algae + 1
+                  ocean_bio_all(i,j,ks,iblk) = nit(i,j,iblk)                       !nit
+                  ks =  2*icepack_max_algae + icepack_max_doc + 7 + icepack_max_dic
+                  ocean_bio_all(i,j,ks,iblk) = nit(i,j,iblk)                       !PON    
+               enddo
+               enddo
+            enddo
+          !$OMP END PARALLEL DO
+
+       ! Save record number for next time step
+       bgcrecnum = recnum
+      endif
+
+!************************************** End Giulia additions
       end subroutine get_forcing_bgc
 
 !=======================================================================
