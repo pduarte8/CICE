@@ -21,15 +21,15 @@
            RANLIB := ranlib
              PERL := perl
              TEST := test
-MCT_INCDIR ?= /cluster/work/users/mitya/tmproms/MCT/include
-MCT_LIBDIR ?= /cluster/work/users/mitya/tmproms/MCT/lib
+MCT_INCDIR ?= /cluster/work/users/pduarte/tmproms/MCT/include
+MCT_LIBDIR ?= /cluster/work/users/pduarte/tmproms/MCT/lib
 
-INCLDIR    := -I. -I/usr/include -I$(MCT_INCDIR) -I/cluster/home/mitya/models/Icepack
+!INCLDIR    := -I. -I/usr/include -I$(MCT_INCDIR) -I/cluster/home/pduarte/pduarte8/Icepack
 SLIBS      := -L/usr/lib -L$(MCT_LIBDIR) -lmct -lmpeu
-INCLDIR := $(INCLDIR)  -I/cluster/home/mitya/CICE/cicecore/cicedynB/infrastructure 
+INCLDIR := $(INCLDIR)  -I/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure 
 #SLIBS := $(SLIBS)  -lnetcdff -lnetcdf
 #SLIBS   := -L$(LIB_NETCDF) -lnetcdff -lnetcdf
-SLIBS := $(SLIBS) -lnetcdff -lnetcdf -L/cluster/home/mitya/CICE/cicecore/cicedynB/infrastructure/  
+SLIBS := $(SLIBS) -lnetcdff -lnetcdf -L/cluster/home/pduarte/pduarte8/CICE/cicecore/cicedynB/infrastructure/  
 #-llibice_shr_reprosum86
 ULIBS      := 
 #CPP        := /usr/bin/cpp
@@ -63,6 +63,7 @@ FIXEDFLAGS := -132
 FREEFLAGS  := 
 #FFLAGS     :=  -w -O2 -ip -convert big_endian -assume byterecl -ftz -mcmodel=large -shared-intel
 FFLAGS     := -r8 -i4 -O2 -align all -w -ftz -convert big_endian -assume byterecl -fp-model precise -mcmodel=large
+FFLAGS += -ip -O3 -g
 #FFLAGS     := -r8 -i4  -align all -w -ftz -convert big_endian -assume byterecl -fp-model precise -g
 #FFLAGS     := -r8 -i4 -align all -w -ftz -convert big_endian -assume byterecl -fpe0 -CB -traceback 
 #FFLAGS     := -r8 -i4 -align all -w -ftz -convert big_endian -assume byterecl -fpe0 -CB -check uninit

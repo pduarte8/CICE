@@ -71,8 +71,10 @@
    !--------------------------------------------------------------------
 #ifdef ROMSCOUPLED
       if (present(coupling_interval)) TimeInterval=coupling_interval
-#endif   
+#endif
+
       call ice_timer_start(timer_step)   ! start timing entire run
+
 
       call icepack_query_parameters(skl_bgc_out=skl_bgc, &
                                     z_tracers_out=z_tracers, &
@@ -105,7 +107,6 @@
 #ifndef CICE_IN_NEMO
          if (stop_now >= 1) exit timeLoop
 #endif
-
          call ice_timer_start(timer_couple)  ! atm/ocn coupling
 
 #ifndef coupled
@@ -113,14 +114,17 @@
 ! for now, wave_spectrum is constant in time
 !         if (tr_fsd .and. wave_spec) call get_wave_spec ! wave spectrum in ice
          call get_forcing_atmo     ! atmospheric forcing from data
+#ifndef ROMSCOUPLED
          call get_forcing_ocn(dt)  ! ocean forcing from data
+#endif         
          if (sea_ice_time_bry)call get_forcing_bry      ! sea-ice boundary data
          ! aerosols
          ! if (tr_aero)  call faero_data                   ! data file
          ! if (tr_zaero) call fzaero_data                  ! data file (gx1)
          if (tr_aero .or. tr_zaero)  call faero_default    ! default values
-
+#ifndef ROMSCOUPLED
          if (skl_bgc .or. z_tracers) call get_forcing_bgc  ! biogeochemistry
+#endif
 #endif
 #endif
          if (z_tracers) call get_atm_bgc                   ! biogeochemistry
@@ -216,7 +220,6 @@
       !-----------------------------------------------------------------
       ! initialize diagnostics and save initial state values
       !-----------------------------------------------------------------
-
          call ice_timer_start(timer_diags)  ! diagnostics/history
          call init_mass_diags   ! diagnostics per timestep
          call init_history_therm
@@ -225,6 +228,7 @@
 
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
+
 
          call save_init
 
@@ -291,7 +295,6 @@
 
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
-
 !MHRI: CHECK THIS OMP
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
@@ -306,7 +309,6 @@
 
          enddo ! iblk
          !$OMP END PARALLEL DO
-
          call ice_timer_start(timer_bound)
          call ice_HaloUpdate (scale_factor,     halo_info, &
                               field_loc_center, field_type_scalar)
@@ -314,7 +316,6 @@
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
-
       !-----------------------------------------------------------------
       ! write data
       !-----------------------------------------------------------------
@@ -359,7 +360,6 @@
 
             call final_restart
          endif
-
          call ice_timer_stop(timer_readwrite)  ! reading/writing
 
       end subroutine ice_step

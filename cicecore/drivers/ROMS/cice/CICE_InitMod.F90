@@ -98,7 +98,8 @@
       logical(kind=log_kind) :: tr_aero, tr_zaero, skl_bgc, z_tracers, &
          tr_fsd, wave_spec
       character(len=*), parameter :: subname = '(cice_init)'
-
+      
+      write(*,*) 'Starting CICE init'
       call init_communicate     ! initial setup for message passing
       call init_fileunits       ! unit numbers
 
@@ -106,11 +107,13 @@
       ! if (my_task /= master_task) nu_diag = 100+my_task
 
       call icepack_configure()  ! initialize icepack
+
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(trim(subname), &
           file=__FILE__,line= __LINE__)
 
       call input_data           ! namelist variables
+
       call input_zbgc           ! vertical biogeochemistry namelist
       call count_tracers        ! count tracers
 
@@ -139,7 +142,6 @@
       else                      ! for both kdyn = 0 or 1
          call init_evp (dt_dyn) ! define evp dynamics parameters, variables
       endif
-
       call init_coupler_flux    ! initialize fluxes exchanged with coupler
 #ifdef popcice
       call sst_sss              ! POP data for CICE initialization
@@ -165,20 +167,17 @@
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
          file=__FILE__, line=__LINE__)
-
 !     call calendar(time)       ! determine the initial date
       call alloc_forcing
       call init_forcing_ocn(dt) ! initialize sss and sst from data
       call init_state           ! initialize the ice state
       call init_transport       ! initialize horizontal transport
       call ice_HaloRestore_init ! restored boundary conditions
-
       call icepack_query_parameters(skl_bgc_out=skl_bgc, z_tracers_out=z_tracers, &
           wave_spec_out=wave_spec)
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(trim(subname), &
           file=__FILE__,line= __LINE__)
-
       if (skl_bgc .or. z_tracers) call alloc_forcing_bgc ! allocate biogeochemistry arrays
 
       call init_restart         ! initialize restart variables
@@ -193,7 +192,6 @@
 
       if (tr_aero .or. tr_zaero) call faero_optics !initialize aerosol optical 
                                                    !property tables
-
       ! Initialize shortwave components using swdn from previous timestep 
       ! if restarting. These components will be scaled to current forcing 
       ! in prep_radiation.
@@ -215,13 +213,18 @@
 #ifndef CESMCOUPLED
       if (tr_fsd .and. wave_spec) call get_wave_spec ! wave spectrum in ice
       call get_forcing_atmo     ! atmospheric forcing from data
+#ifndef ROMSCOUPLED
       call get_forcing_ocn(dt)  ! ocean forcing from data
+#endif
       if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data
       ! aerosols
       ! if (tr_aero)  call faero_data                   ! data file
       ! if (tr_zaero) call fzaero_data                  ! data file (gx1)
       if (tr_aero .or. tr_zaero)  call faero_default    ! default values
+      write(*,*) 'faero_default done'
+#ifndef ROMSCOUPLED
       if (skl_bgc .or. z_tracers) call get_forcing_bgc  ! biogeochemistry
+#endif
 #endif
 #endif
       if (z_tracers) call get_atm_bgc                   ! biogeochemistry
@@ -231,11 +234,13 @@
 
       call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
       call init_flux_ocn        ! initialize ocean fluxes sent to coupler
-
-      if (write_ic) call accum_hist(dt) ! write initial conditions 
+      if (write_ic) call accum_hist(dt) ! write initial conditions
 #ifdef ROMSCOUPLED
+      write(*,*) 'Calling CICE_MCT_coupling'
       call CICE_MCT_coupling
+      write(*,*) 'CICE_MCT_coupling done'
 #endif
+      write(*,*) 'Finishing CICE init'
       end subroutine cice_init
 
 !=======================================================================

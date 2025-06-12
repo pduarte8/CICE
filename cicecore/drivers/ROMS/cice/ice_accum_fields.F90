@@ -14,7 +14,9 @@
                 write_restart_accum_fields, read_restart_accum_fields,  &
                 update_accum_clock, mean_i2o_fields, zero_i2o_fields,   &
                 idaice, idfresh, idfsalt, idfhocn, idfswthru,           &
-                idstrocnx, idstrocny!, accum_i2o_fields
+                idstrocnx, idstrocny,                                   & !, accum_i2o_fields
+                idfNit, idfAm, idfN001, idfSil,                         & ! bgc fields added by Pedro
+                accum_i2o_fields
 
 !jd Time-accumulation of coupling fields. 
        !real (kind=dbl_kind),  &
@@ -23,7 +25,7 @@
 
        !real(kind=dbl_kind), dimension(nx_block,ny_block,max_blocks) :: work
 
-       real (kind=dbl_kind), dimension (:,:,:,:), allocatable, public :: &
+       real (kind=dbl_kind), dimension (:,:,:,:), allocatable :: &
            accum_i2o_fields
        real (kind=dbl_kind), dimension (:,:,:), allocatable, public :: &
            work
@@ -81,6 +83,9 @@
       use ice_state, only: aice
       use ice_flux, only: fresh_ai, fsalt_ai,&
          fhocn_ai,fswthru_ai, strocnxT, strocnyT
+      use ice_flux_bgc, only: flux_bio_ai   !Added by Pedro
+      use icepack_tracers, only:nlt_bgc_Nit, &  !Added by Pedro
+          nlt_bgc_Am, nlt_bgc_N, nlt_bgc_Sil
 
       real(kind=dbl_kind), intent(in) :: dt
 
@@ -94,6 +99,18 @@
       call accum_field(idstrocnx, work, dt)
       work=strocnyT*aice
       call accum_field(idstrocny, work, dt)
+
+      ! Added by Pedro
+      if (TRBGCZ.eq.1) then
+         work=flux_bio_ai(:,:,nlt_bgc_Nit,:)
+         call accum_field(idfNit, work, dt)
+         work=flux_bio_ai(:,:,nlt_bgc_Am,:)
+         call accum_field(idfAm, work, dt)
+         work=flux_bio_ai(:,:,nlt_bgc_N(1),:)
+         call accum_field(idfN001, work, dt)
+         work=flux_bio_ai(:,:,nlt_bgc_Sil,:)
+         call accum_field(idfSil, work, dt)
+      endif
 
       contains 
 
@@ -165,6 +182,21 @@
       call write_restart_field(nu_dump_accum,0, &
                   accum_i2o_fields(:,:,idstrocny,:),'ruf8', & 
                   'accum_strocny',1,diag)
+      ! Added by Pedro bgc fields below
+      if (TRBGCZ.eq.1) then
+      call write_restart_field(nu_dump_accum,0, &
+                  accum_i2o_fields(:,:,idfNit,:),'ruf8', &
+                  'accum_fNit',1,diag)
+      call write_restart_field(nu_dump_accum,0, &
+                  accum_i2o_fields(:,:,idfAm,:),'ruf8', &
+                  'accum_fAm',1,diag)
+      call write_restart_field(nu_dump_accum,0, &
+                  accum_i2o_fields(:,:,idfN001,:),'ruf8', &
+                  'accum_fN001',1,diag)
+      call write_restart_field(nu_dump_accum,0, &
+                  accum_i2o_fields(:,:,idfSil,:),'ruf8', &
+                  'accum_fSil',1,diag)
+      endif
 
       end subroutine write_restart_accum_fields
 
@@ -209,6 +241,21 @@
       call read_restart_field(nu_restart_accum,0, &
                   accum_i2o_fields(:,:,idstrocny,:),'ruf8', & 
                   'accum_strocny',1,diag)
+      ! Added by Pedro bgc fields below
+      if (TRBGCZ.eq.1) then
+      call read_restart_field(nu_restart_accum,0, &
+                  accum_i2o_fields(:,:,idfNit,:),'ruf8', &
+                  'accum_fNit',1,diag)
+      call read_restart_field(nu_restart_accum,0, &
+                  accum_i2o_fields(:,:,idfAm,:),'ruf8', &
+                  'accum_fAm',1,diag)
+      call read_restart_field(nu_restart_accum,0, &
+                  accum_i2o_fields(:,:,idfN001,:),'ruf8', &
+                  'accum_fN001',1,diag)
+      call read_restart_field(nu_restart_accum,0, &
+                  accum_i2o_fields(:,:,idfSil,:),'ruf8', &
+                  'accum_fSil',1,diag)
+      endif
 
       end subroutine read_restart_accum_fields
 

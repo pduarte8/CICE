@@ -215,8 +215,8 @@
       !-----------------------------------------------------------------
 
       abort_flag = 0
-
       call icepack_query_parameters(puny_out=puny)
+
 ! nu_diag not yet defined
 !      call icepack_warnings_flush(nu_diag)
 !      if (icepack_warnings_aborted()) call abort_ice(error_message=subname//'Icepack Abort0', &
@@ -418,11 +418,11 @@
 #ifdef CESMCOUPLED
       nml_filename  = 'ice_in'//trim(inst_suffix)
 #endif
-
       call get_fileunit(nu_nml)
 
       if (my_task == master_task) then
          open (nu_nml, file=nml_filename, status='old',iostat=nml_error)
+         print*,'OpenFile=',nml_error
          if (nml_error /= 0) then
             nml_error = -1
          else
@@ -431,6 +431,7 @@
 
          do while (nml_error > 0)
             print*,'Reading setup_nml'
+            print*,nml_filename
                read(nu_nml, nml=setup_nml,iostat=nml_error)
                if (nml_error /= 0) exit
             print*,'Reading grid_nml'
@@ -453,6 +454,7 @@
                if (nml_error /= 0) exit
             print*,'Reading forcing_nml'
                read(nu_nml, nml=forcing_nml,iostat=nml_error)
+               print*,'nml_error=',nml_error
                if (nml_error /= 0) exit
          end do
          if (nml_error == 0) close(nu_nml)

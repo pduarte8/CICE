@@ -47,7 +47,7 @@ else
   endif
 endif
 
-
+ar rcv libcice.a *.o
 if (${dohelp} == 1) then
   cat << EOF1
 
@@ -138,7 +138,7 @@ else
 endif
 
 
-echo "mitya" ${ICE_SANDBOX}/cicecore/drivers/${ICE_DRVOPT}  
+echo "Pedro" ${ICE_SANDBOX}/cicecore/drivers/${ICE_DRVOPT}  
 ### List of source code directories (in order of importance).
 cat >! Filepath << EOF
 ${ICE_SANDBOX}/cicecore/drivers/${ICE_DRVOPT}
@@ -149,7 +149,8 @@ ${ICE_SANDBOX}/cicecore/cicedynB/infrastructure
 ${ICE_SANDBOX}/cicecore/cicedynB/infrastructure/io/$IODIR
 ${ICE_SANDBOX}/cicecore/cicedynB/infrastructure/comm/${ICE_COMMDIR}
 ${ICE_SANDBOX}/cicecore/shared
-/cluster/home/mitya/models/Icepack/columnphysics
+/cluster/home/pduarte/pduarte8/Icepack/columnphysics
+${MCT_INCDIR}
 EOF
 
 if !($?ICE_MACHINE_BLDTHRDS) then
@@ -239,6 +240,7 @@ endif
 
 echo "`date` ${0}:${ICE_CASENAME} build completed ${ICE_BLDLOG_FILE}"  >> ${ICE_CASEDIR}/README.case
 echo "${0}: COMPILE SUCCESSFUL, ${ICE_LOGDIR}/${ICE_BLDLOG_FILE}"
+ar rcv libcice.a *.o
 if ( ${ICE_TEST} != ${ICE_SPVAL} ) then
   echo "#---" >! ${ICE_CASEDIR}/test_output
   echo "PASS ${ICE_TESTNAME} build" >> ${ICE_CASEDIR}/test_output

@@ -185,8 +185,15 @@
    call get_ice_timer(timer_cplsend,  'Cpl-Send', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_sndrcv,   'Snd->Rcv', nblocks,distrb_info%nprocs)
 #endif
+#ifdef ROMSCOUPLED
+   call get_ice_timer(timer_cplrecv,  'o2i-recv', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_rcvsnd,   'o2i-post', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_cplsend,  'i2o-wait', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_sndrcv,   'i20-prep', nblocks,distrb_info%nprocs)
+#endif
    call get_ice_timer(timer_evp_1d,   '1d-evp', nblocks,distrb_info%nprocs)
    call get_ice_timer(timer_evp_2d,   '2d-evp', nblocks,distrb_info%nprocs)
+   call get_ice_timer(timer_tmp,      'mct_init ',nblocks,distrb_info%nprocs)
 !   call get_ice_timer(timer_tmp,      '         ',nblocks,distrb_info%nprocs)
 
 !-----------------------------------------------------------------------

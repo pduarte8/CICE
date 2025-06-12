@@ -10,11 +10,18 @@ module CICE_MCT
   use ice_domain_size, only : nx_global, ny_global, max_blocks !, block_size_x, block_size_y
   use ice_flux, only: sst, uocn, vocn, zeta, ss_tltx, ss_tlty,&
        sss,frzmlt
+  ! Added by Pedro
+  use ice_flux_bgc, only: nit, amm, sil
+  use ice_arrays_column, only: ocean_bio_all
+  use icepack_tracers, only: max_algae, max_doc, max_dic
+! end Pedro changes
+
   use ice_boundary, only: ice_HaloUpdate
   use ice_fileunits, only: ice_stdout, ice_stderr ! these might be the same
 
   use ice_accum_shared, only: idaice, idfresh, idfsalt, idfhocn, idfswthru, &
-       idstrocnx, idstrocny, accum_time
+       idstrocnx, idstrocny, accum_time, &
+       idfNit, idfAm, idfN001,idfSil
   use ice_accum_fields, only: accum_i2o_fields, mean_i2o_fields, zero_i2o_fields
   use ice_timers, only: ice_timer_start, ice_timer_stop,ice_timer_print,&
        timer_cplrecv, timer_rcvsnd, timer_cplsend,timer_sndrcv,timer_tmp
@@ -79,9 +86,9 @@ module CICE_MCT
  ! real (kind=dbl_kind) ::   tcoupling = 0.0
   
   character (len=240) :: &
-       importList = 'SST:SSS:FRZMLT:u:v:SSH', &
+       importList = 'SST:SSS:FRZMLT:u:v:SSH:NO3:NH4:SiOH', &
        exportList = &
-       'AICE:freshAI:fsaltAI:fhocnAI:fswthruAI:strocnx:strocny'
+       'AICE:freshAI:fsaltAI:fhocnAI:fswthruAI:strocnx:strocny:fNit:fAm:fN001:fSil'
 
   integer (int_kind), public :: &
        CICEid,                   &
@@ -204,8 +211,11 @@ contains
     real(kind=dbl_kind), pointer :: avdata(:)
     integer     :: ilo, ihi, jlo, jhi ! beginning and end of physical domain
     type(block) :: this_block         ! block information for current block
-    integer     :: i,j,Asize,iblk,n
-
+    integer     :: i,j,Asize,iblk,n, &
+                   ks              ! bgc tracer index (bio_index_o)
+! Ks Added by Pedro
+    write(*,*) 'CICE_MCT_coupling starting'
+    
 
 
 !        ***********************************
@@ -231,7 +241,7 @@ contains
        Asize=GlobalSegMap_lsize(GSMapCICE, MPI_COMM_ICE)
        allocate(avdata(Asize))
        avdata=0.0
-
+ 
 !jd 
        call mean_i2o_fields()
 
@@ -246,6 +256,21 @@ contains
        call ice2ocn_send_field(accum_i2o_fields(:,:,idfhocn,:),'fhocnAI')
 ! Exporting fswthru_ai
        call ice2ocn_send_field(accum_i2o_fields(:,:,idfswthru,:),'fswthruAI')
+
+!Added by Pedro 20.01.2023
+!Begin
+       if (TRBGCZ.eq.1) then
+! Exporting fNit_ai
+       call ice2ocn_send_field(accum_i2o_fields(:,:,idfNit,:),'fNit')
+! Exporting fAm_ai
+       call ice2ocn_send_field(accum_i2o_fields(:,:,idfAm,:),'fAm')
+! Exporting fN001_ai
+       call ice2ocn_send_field(accum_i2o_fields(:,:,idfN001,:),'fN001')
+! Exporting fSil_ai
+       call ice2ocn_send_field(accum_i2o_fields(:,:,idfSil,:),'fSil')
+       endif
+!End
+       
 ! Export stress vector. Allready converted to T-cell and scaled with aice
 ! Change of sign here as the stress on the ocean acts in opposite
 ! directon as the stress on the ice.
@@ -269,25 +294,162 @@ contains
        call ice_timer_stop(timer_cplrecv)
 
        call ice_timer_start(timer_rcvsnd)
-       write(ice_stdout,*) 'CICE - Ocean: CICE Received data'
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE - Ocean: CICE Received data'
 
 !
 ! SST
 !
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'SST', avdata)
 
-       write(ice_stdout,*) 'CICE rank ',my_task,  &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
             ' setting the sst field (max/min): ', &
             maxval(avdata), ' ', minval(avdata)
 
        call avec2field(avdata,sst)
        call ice_HaloUpdate (sst, halo_info, &
             field_loc_center, field_type_scalar)
+! Added by Pedro
+       if (TRBGCZ.eq.1) then
+! Nitrate
+          CALL AttrVect_exportRAttr(ocn2cice_AV, 'NO3', avdata)
+
+          IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
+            ' setting the nit field (max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+
+          call avec2field(avdata,nit)
+
+          if (minval(avdata) < c0) then
+             write(ice_stdout,*) 'CICE rank ',my_task,  &
+               ' correcting invalid nit ', minval(avdata)
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+              ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   nit(i,j,iblk)=max(nit(i,j,iblk),c0)
+                end do
+             end do
+          end do
+          endif
+
+          call ice_HaloUpdate (nit, halo_info, &
+               field_loc_center, field_type_scalar)
+
+          ks = max_algae + 1
+
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+             ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   nit(i,j,iblk)=max(nit(i,j,iblk),c0)
+                   ocean_bio_all(i,j,ks,iblk) = nit(i,j,iblk)
+                end do
+             end do
+          end do
+
+          CALL AttrVect_exportRAttr(ocn2cice_AV, 'NH4', avdata)
+
+          IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
+            ' setting the amm field (max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+
+          call avec2field(avdata,amm)
+
+          if (minval(avdata) < c0) then
+             write(ice_stdout,*) 'CICE rank ',my_task,  &
+               ' correcting invalid amm ', minval(avdata)
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+             ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   amm(i,j,iblk)=max(amm(i,j,iblk),c0)
+                end do
+             end do
+          end do
+          endif
+
+          call ice_HaloUpdate (amm, halo_info, &
+               field_loc_center, field_type_scalar)
+
+          Ks = 2*max_algae + max_doc + max_dic + 2
+
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+             ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   amm(i,j,iblk)=max(amm(i,j,iblk),c0)
+                   ocean_bio_all(i,j,ks,iblk) = amm(i,j,iblk)
+                end do
+             end do
+          end do
+
+
+          CALL AttrVect_exportRAttr(ocn2cice_AV, 'SiOH', avdata)
+
+          IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
+            ' setting the sil field (max/min): ', &
+            maxval(avdata), ' ', minval(avdata)
+
+          call avec2field(avdata,sil)
+
+          if (minval(avdata) < c0) then
+             write(ice_stdout,*) 'CICE rank ',my_task,  &
+               ' correcting invalid sil ', minval(avdata)
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+             ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   sil(i,j,iblk)=max(sil(i,j,iblk),c0)
+                end do
+             end do
+          end do
+          endif
+
+           call ice_HaloUpdate (sil, halo_info, &
+               field_loc_center, field_type_scalar)
+
+          ks = 2*max_algae + max_doc + 3 + max_dic
+
+          do iblk = 1, nblocks
+             this_block = get_block(blocks_ice(iblk),iblk)
+             ilo = this_block%ilo
+             ihi = this_block%ihi
+             jlo = this_block%jlo
+             jhi = this_block%jhi
+             do j = jlo, jhi
+                do i = ilo, ihi
+                   sil(i,j,iblk)=max(sil(i,j,iblk),c0)
+                   ocean_bio_all(i,j,ks,iblk) = sil(i,j,iblk)
+                end do
+             end do
+          end do
+
+       endif
 
 ! Salinity
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'SSS', avdata)
        
-       write(ice_stdout,*) 'CICE rank ',my_task,  &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
             ' setting the sss field (max/min): ', &
             maxval(avdata), ' ', minval(avdata)
 
@@ -316,7 +478,7 @@ contains
 ! Melt freeze potential
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'FRZMLT', avdata)
 
-       write(ice_stdout,*) 'CICE rank ',my_task,  &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ',my_task,  &
             ' setting the frzmlt field (max/min): ', &
             maxval(avdata), ' ', minval(avdata)
 
@@ -332,7 +494,7 @@ contains
        !
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'u', avdata)
 
-       write(ice_stdout,*) 'CICE rank ', my_task,    &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ', my_task,    &
             ' setting the U (uocn) field(max/min): ',&
             maxval(avdata), ' ', minval(avdata)
 
@@ -347,9 +509,10 @@ contains
 
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'v', avdata)
        
-       write(ice_stdout,*) 'CICE rank ', my_task, &
-            ' setting the v (vocn) field(max/min): ', &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ', my_task, &
+            ' setting the V (vocn) field(max/min): ', &
             maxval(avdata), ' ', minval(avdata)
+       IF (my_task == master_task) write(ice_stdout,*) 'Shape of avdata= ', shape(avdata)
        
        call avec2field(avdata,vocn)
        call ice_HaloUpdate (vocn, halo_info, &
@@ -366,14 +529,16 @@ contains
 !
        CALL AttrVect_exportRAttr(ocn2cice_AV, 'SSH', avdata)
 
-       write(ice_stdout,*) 'CICE rank ', my_task, &
+       IF (my_task == master_task) write(ice_stdout,*) 'CICE rank ', my_task, &
             ' setting the SSH field(max/min): ', &
             maxval(avdata), ' ', minval(avdata)
-
+       IF (my_task == master_task) write(ice_stdout,*) 'Shape of avdata= ', shape(avdata) 
+       IF (my_task == master_task) write(ice_stdout,*) 'Shape of zeta  = ', shape(zeta)
        call avec2field(avdata,zeta)
+       IF (my_task == master_task) write(ice_stdout,*) 'avec2field done'
        call ice_HaloUpdate (zeta, halo_info, &
             field_loc_center, field_type_scalar)
-
+       IF (my_task == master_task) write(ice_stdout,*) 'ice_HaloUpdate 1 done'
        do iblk = 1, nblocks
           this_block = get_block(blocks_ice(iblk),iblk)
           ilo = this_block%ilo
@@ -394,14 +559,16 @@ contains
        
        call ice_HaloUpdate (ss_tltx, halo_info, &
             field_loc_NEcorner, field_type_vector)
+       IF (my_task == master_task) write(ice_stdout,*) 'ice_HaloUpdate 2 done'
        call ice_HaloUpdate (ss_tlty, halo_info, &
             field_loc_NEcorner, field_type_vector)
-       
+       IF (my_task == master_task) write(ice_stdout,*) 'ice_HaloUpdate 3 done'
       
        call zero_i2o_fields ! also accum_time is zeroed
-       
+       IF (my_task == master_task) write(ice_stdout,*) 'zero_i2o_fields done'
        deallocate(avdata)
        call ice_timer_stop(timer_rcvsnd)
+       IF (my_task == master_task) write(ice_stdout,*) 'ice_timer_stop done'
 
     END IF
     initial_call=.false.

@@ -319,7 +319,8 @@
       if (use_leap_years .and. (trim(atm_data_type) /= 'JRA55' .and. &
                                 trim(atm_data_type) /= 'default' .and. &
                                 trim(atm_data_type) /= 'hycom' .and. &
-                                trim(atm_data_type) /= 'box2001')) then
+                                trim(atm_data_type) /= 'box2001' .and. &
+                                trim(atm_data_type) /= 'ecmwf'))then
          write(nu_diag,*) 'use_leap_years option is currently only supported for'
          write(nu_diag,*) 'JRA55, default , and box2001 atmospheric data'
          call abort_ice(error_message=subname, file=__FILE__, line=__LINE__)
@@ -3302,6 +3303,7 @@
           fsw, flw, Tair, rhoa, Qa, fcondtopn_f, fsurfn_f, flatn_f
       use ice_state, only: aice,aicen
       use ice_grid, only: hm, tlon, tlat, tmask, umask
+      use ice_calendar, only: days_per_year, use_leap_years
 
       integer (kind=int_kind) :: &
           i, j        , & ! horizontal indices
@@ -3342,7 +3344,7 @@
 
       dbug=.false.
       if (istep1 > check_step) dbug = .true.  !! debugging
-
+      if (use_leap_years) days_per_year = 366 !overrides setting of 365 in ice_calendar
       call icepack_query_parameters(secday_out=secday)
 #define monthly
 #undef monthly

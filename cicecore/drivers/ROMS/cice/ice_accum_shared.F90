@@ -13,14 +13,18 @@
       real (kind=dbl_kind), public :: accum_time
 
 !jd Coupling fields and indexes
-      integer, parameter, public :: nfields = 7,  &
+      integer, parameter, public :: nfields = 11,  &
          idaice=1, &
          idfresh=2, &
          idfsalt=3, &
          idfhocn=4, &
          idfswthru=5, &
          idstrocnx=6, &
-         idstrocny=7 
+         idstrocny=7, &
+         idfNit=8, &
+         idfAm=9, &
+         idfN001=10, &
+         idfSil=11 
 
       end module ice_accum_shared
 
