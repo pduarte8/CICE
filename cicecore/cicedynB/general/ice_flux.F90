@@ -345,7 +345,10 @@
          vocn       (nx_block,ny_block,max_blocks), & ! ocean current, y-direction (m/s)
          ss_tltx    (nx_block,ny_block,max_blocks), & ! sea surface slope, x-direction (m/m)
          ss_tlty    (nx_block,ny_block,max_blocks), & ! sea surface slope, y-direction
-         hwater     (nx_block,ny_block,max_blocks), & ! water depth for basal stress calc (landfast ice) 
+         hwater     (nx_block,ny_block,max_blocks), & ! water depth for basal stress calc (landfast ice)
+#ifdef ROMSCOUPLED
+         zeta       (nx_block,ny_block,max_blocks), & ! sea surface height from ROMS (m)
+#endif 
          strairxT   (nx_block,ny_block,max_blocks), & ! stress on ice by air, x-direction
          strairyT   (nx_block,ny_block,max_blocks), & ! stress on ice by air, y-direction
          strocnxT   (nx_block,ny_block,max_blocks), & ! ice-ocean stress, x-direction

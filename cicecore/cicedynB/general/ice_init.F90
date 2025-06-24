@@ -135,7 +135,7 @@
       character (len=64) :: tmpstr
 
       character(len=*), parameter :: subname='(input_data)'
-
+      character(len=200) :: err_msg
       !-----------------------------------------------------------------
       ! Namelist variables
       !-----------------------------------------------------------------
@@ -432,6 +432,8 @@
          do while (nml_error > 0)
             print*,'Reading setup_nml'
             print*,nml_filename
+               !read(nu_nml, nml=setup_nml,iostat=nml_error, iomsg=err_msg)
+               !print*,'Namelist read error:',trim(err_msg)
                read(nu_nml, nml=setup_nml,iostat=nml_error)
                if (nml_error /= 0) exit
             print*,'Reading grid_nml'
@@ -1278,7 +1280,7 @@
  1000    format (a30,2x,f9.2)  ! a30 to align formatted, unformatted statements
  1005    format (a30,2x,f12.6) ! float
  1010    format (a30,2x,l6)    ! logical
- 1020    format (a30,2x,i6)    ! integer
+ 1020    format (a30,2x,i8)    ! integer
  1021    format (a30,2x,a8,i6) ! char, int
  1030    format (a30,   a8)    ! character
  1040    format (a30,2x,6i6)   ! integer
