@@ -1,0 +1,40 @@
+cff-version: 2.3
+title: "Modified version of the CICE sea ice model"
+message: "If you use this modified version, please cite it as below."
+type: software
+authors:
+  - family-names: Duarte
+    given-names: Pedro
+    affiliation: "Norwegian Polar Institute, Tromsø, Norway"
+    orcid: "https://orcid.org/0000-0001-7461-605X"  
+  - family-names: Castellani
+    given-names: Giulia
+    affiliation: "University of Bremen, Institute of Environmental Physics (IUP), Bremen, Germany"
+    orcid: "https://orcid.org/0000-0001-6151-015X"
+repository-code: "https://github.com/pduarte8/CICE"
+version: "v2.3_New_data_types"     
+date-released: "2025-10-18"
+keywords:
+  - sea ice
+  - ocean modeling
+  - CICE
+  - coupled modeling
+  - climate simulations
+license: "GPL-3.0"
+preferred-citation:
+  type: software
+  title: "Modified version of the CICE sea ice model"
+  authors:
+    - family-names: "Duarte"
+      given-names: "Pedro"
+    - family-names: "Castellani"
+      given-names: "Giulia"
+  notes: >
+    This code is a fork derived from the CICE Consortium repository
+    (https://github.com/CICE-Consortium, last access: 26 January 2022).
+    The original CICE model was developed by the CICE Consortium and
+    collaborators. This version includes modifications and adaptations
+    by the authors listed above.
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.xxxxxxx" 
